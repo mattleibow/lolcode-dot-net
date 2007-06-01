@@ -7,14 +7,16 @@ namespace notdot.LOLCode
     internal class CodePragma
     {
         public string file;
-        public int line;
-        public int column;
+        public int startLine;
+        public int startColumn;
+        public int endLine;
+        public int endColumn;
 
         public CodePragma(string file, int line, int column)
         {
             this.file = file;
-            this.line = line;
-            this.column = column;
+            this.startLine = this.endLine = line;
+            this.statColumn = this.endColumn = column;
         }
     }
 
@@ -146,12 +148,19 @@ namespace notdot.LOLCode
         public ConditionalStatement(CodePragma loc) : base(loc) { }
     }
 
-    internal class FuncCallStatement : Statement
-    {
-        public string name;
-        public List<Expression> arguments = new List<Expression>();
+    internal class QuitStatement : Statement {
+        public int code = 0;
+        public string message = null;
 
-        public FuncCallStatement(CodePragma loc) : base(loc) { }    
+        public QuitStatement(CodePragma loc) : base(loc) { }
+    }
+
+    internal class PrintStatement : Statement {
+        public bool stderr = false;
+        public Expression message;
+        public bool newline = true;
+
+        public PrintStatement(CodePragma loc) : base(loc) { }
     }
 
     internal class IntegerBinaryExpression : Expression {

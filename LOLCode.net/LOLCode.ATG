@@ -14,6 +14,11 @@ private CodePragma GetPragma(Token tok) {
 	return new CodePragma(filename, tok.line, tok.col);
 }
 
+private void SetEndPragma(CodeObject co) {
+	co.pragma.endLine = t.line;
+	co.pragma.endColumn = t.col + t.val.Length;
+}
+
 void Error (string s) {
   if (errDist >= minErrDist) errors.SemErr(la.line, la.col, s);
   errDist = 0;
@@ -65,7 +70,7 @@ LOLCode
 	"KTHXBYE" { eos }
 .
 
-Statements<.List<Statement>statements.>
+Statements<.List<Statement> statements.>
 =													(. Statement stat; .)
 	{ ( CanHasStatement | Statement<out stat>		(. statements.Add(stat); .)
 	  ) { eos } }
@@ -79,8 +84,9 @@ Statement<out Statement stat>						(. stat = null; .)
 	| GTFOStatement<out stat>
 	| BinaryOpStatement<out stat>
 	| IzStatement<out stat>
-	| FuncCallStatement<out stat>
+	| QuitStatement<out stat>
 	| AssignmentStatement<out stat>
+	| PrintStatement<out stat>
 .
 
 CanHasStatement
@@ -92,22 +98,22 @@ GimmehStatement<out Statement stat>
 =													(. InputStatement ins = new InputStatement(GetPragma(la)); stat = ins; .)
 	"GIMMEH" [ "LINE" | "WORD"						(. ins.amount = IOAmount.Word; .)
 	| "LETTAR"										(. ins.amount = IOAmount.Letter; .)
-	] LValue<out ins.dest>
+	] LValue<out ins.dest>							(. SetEndPragma(stat); .)
 .
 
 GTFOStatement<out Statement stat>
 =													(. stat = new BreakStatement(GetPragma(la)); .)
-	"GTFO"
+	"GTFO"											(. SetEndPragma(stat); .)
 .
 
 IHasAStatement<out Statement stat>
 =													(. VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; .)
-	"I" "HAS" "A" ident								(. vds.name = t.val; .)
+	"I" "HAS" "A" ident								(. vds.name = t.val; SetEndPragma(stat); .)
 .
 
 LoopStatement<out Statement stat>
 =													(. LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; .)
-	"IM" "IN" "YR" ident							(. ls.name = t.val; .)
+	"IM" "IN" "YR" ident							(. ls.name = t.val; SetEndPragma(stat) .)
 	{ eos }
 	Statements<ls.statements>
 	"KTHX"
@@ -120,52 +126,66 @@ BinaryOpStatement<out Statement stat>
 	| "TIEMZD"										(. bos.op = OpCodes.Mul; .)
 	| "OVARZ"										(. bos.op = OpCodes.Div; .)
 	) LValue<out bos.lval>
-	"!!" [ Expression<out bos.amount> ]
+	"!!" [ Expression<out bos.amount> ]				(. SetEndPragma(stat); .)
 .
 
 IzStatement<out Statement stat>
 =													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; Statement st; .)
 	"IZ" Expression<out cs.condition>
-	"?" { eos }
+	"?"												(. SetEndPragma(stat); .)
+	{ eos }
 		[ "YARLY" { eos } Statements<cs.trueStatements> ]
 		[ "NOWAI" { eos } Statements<cs.falseStatements> ]
 	"KTHX"
 .
 
-FuncCallStatement<out Statement stat>				(. FuncCallStatement fcs = new FuncCallStatement(GetPragma(la)); stat = fcs; Expression parm; .)
+QuitStatement<out Statement stat>					(. QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; .)
 =
-	ident											(. fcs.name = t.val; .)
-	[ Unary<out parm>								(. fcs.arguments.Add(parm); .)
-	{ Unary<out parm>								(. fcs.arguments.Add(parm); .)
-	} ]
+	( "BYES"										(. qs.code = 0; .)
+	| "DIAF"										(. qs.code = 1; .)
+	) [ intCon										(. qs.code = int.Parse(t.val); .)
+	[ stringCon										(. qs.message = t.val.Substring(1, t.val.Length - 2); .)
+	] ]												(. SetEndPragma(stat); .)
+.
+
+PrintStatement<out Statement stat>					(. PrintStatement ps = new PrintStatement(GetPragma(la)); stat = ps; .)
+=
+	( "VISIBLE" | "INVISIBLE"						(. ps.stderr = true; .)
+	) Expression<out ps.message>
+	[ "!"											(. ps.newline = false; .)
+	]												(. SetEndPragma(stat); .)
 .
 
 AssignmentStatement<out Statement stat>
 =													(. AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; .)
-	"LOL" LValue<out ass.lval> "R" Expression<out ass.rval>
+	"LOL" LValue<out ass.lval> 
+	"R" Expression<out ass.rval>					(. SetEndPragma(stat); .)
 .
 
 Expression<out Expression exp>
 =													(. Expression left; .)
-	Unary<out left> AndExpression<out exp, left>
+	Unary<out left> AndExpression<out exp, left>	(. SetEndPragma(exp); .)
 .
 
 AndExpression<out Expression exp, Expression left>
 =
 	XorExpression<out exp, left> { "AND"			(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.And; ibs.left = exp; exp = ibs; .)
-	  Unary<out ibs.right> XorExpression<out ibs.right, ibs.right> }
+	  Unary<out ibs.right> 
+	  XorExpression<out ibs.right, ibs.right> }		(. SetEndPragma(exp); .)
 .
 
 XorExpression<out Expression exp, Expression left>
 =
 	OrExpression<out exp, left> { "XOR"				(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Xor; ibs.left = exp; exp = ibs; .)
-	  Unary<out ibs.right> OrExpression<out ibs.right, ibs.right> }
+	  Unary<out ibs.right> 
+	  OrExpression<out ibs.right, ibs.right> }		(. SetEndPragma(exp); .)
 .
 
 OrExpression<out Expression exp, Expression left>
 =
 	ComparisonExpression<out exp, left> { "OR"		(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Or; ibs.left = exp; exp = ibs; .)
-	  Unary<out ibs.right> ComparisonExpression<out ibs.right, ibs.right> }
+	  Unary<out ibs.right> 
+	  ComparisonExpression<out ibs.right, ibs.right> } (. SetEndPragma(exp); .)
 .
 
 ComparisonExpression<out Expression exp, Expression left>
@@ -175,7 +195,8 @@ ComparisonExpression<out Expression exp, Expression left>
 	  ] ( "BIGR"									(. ibs.op = OpCodes.Cgt; .)
 	  [ "THAN" ] | "SMALR"							(. ibs.op = OpCodes.Clt; .)
 	  [ "THAN" ] | "LIEK"							(. ibs.op = OpCodes.Ceq; .)
-	  ) Unary<out ibs.right> ArithmeticExpression<out ibs.right, ibs.right> }
+	  ) Unary<out ibs.right> 
+	  ArithmeticExpression<out ibs.right, ibs.right> } (. SetEndPragma(exp); .)
 .
 
 ArithmeticExpression<out Expression exp, Expression left>
@@ -183,7 +204,8 @@ ArithmeticExpression<out Expression exp, Expression left>
 	MultiplicationExpression<out exp, left> {		(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; .)
 	( "UP"											(. ibs.op = OpCodes.Add; .)
 	| "NERF"										(. ibs.op = OpCodes.Sub; .)
-	) Unary<out ibs.right> MultiplicationExpression<out ibs.right, ibs.right> }
+	) Unary<out ibs.right> 
+	MultiplicationExpression<out ibs.right, ibs.right> } (. SetEndPragma(exp); .)
 .
 
 MultiplicationExpression<out Expression exp, Expression left>
@@ -191,28 +213,28 @@ MultiplicationExpression<out Expression exp, Expression left>
 	{												(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; .)
 	( "TIEMZ"										(. ibs.op = OpCodes.Mul; .)
 	| "OVAR"										(. ibs.op = OpCodes.Div; .)
-	) Unary<out ibs.right> }
+	) Unary<out ibs.right> }						(. SetEndPragma(exp); .)
 .
 
 Unary<out Expression exp>							(. exp = null; .)
 =
-	IF(la.kind == _intCon && !IsArrayIndex()) intCon (. exp = new PrimitiveExpression(GetPragma(la), int.Parse(t.val)); .)
+	IF(la.kind == _intCon && !IsArrayIndex()) intCon (. exp = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(exp); .)
 	|												(. LValueExpression lve = new LValueExpression(GetPragma(la)); exp = lve; .)
-	LValue<out lve.lval>
-	| stringCon										(. exp = new PrimitiveExpression(GetPragma(la), t.val.Substring(1, t.val.Length - 2)); .)
+	LValue<out lve.lval>							(. SetEndPragma(exp); .)
+	| stringCon										(. exp = new PrimitiveExpression(GetPragma(t), t.val.Substring(1, t.val.Length - 2)); SetEndPragma(exp); .)
 .
 
 LValue<out LValue lv>								(. lv = null; .)
 =
-	IF(!IsArrayIndex()) ident						(. lv = new VariableLValue(GetPragma(la), t.val); .)
+	IF(!IsArrayIndex()) ident						(. lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(); .)
 	| ArrayIndex<out lv>
 .
 
 ArrayIndex<out LValue lv>
 =													(. ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; .)
-	( ident											(. alv.index = new LValueExpression(GetPragma(la), new VariableLValue(GetPragma(la), t.val)); .)
-	| intCon										(. alv.index = new PrimitiveExpression(GetPragma(la), int.Parse(t.val)); .)
-	) "IN" "MAH" LValue<out alv.lval>
+	( ident											(. alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); .)
+	| intCon										(. alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); .)
+	) "IN" "MAH" LValue<out alv.lval>				(. SetEndPragma(alv); .)
 .
 
 END LOLCode.

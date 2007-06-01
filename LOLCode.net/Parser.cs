@@ -15,8 +15,8 @@ internal partial class Parser {
 	const int _stringCon = 4;
 	const int _eos = 5;
 	const int _in = 6;
-	const int maxT = 45;
-	const int _comment = 46;
+	const int maxT = 50;
+	const int _comment = 51;
 
 	const bool T = true;
 	const bool x = false;
@@ -38,6 +38,11 @@ private bool IsArrayIndex() {
 
 private CodePragma GetPragma(Token tok) {
 	return new CodePragma(filename, tok.line, tok.col);
+}
+
+private void SetEndPragma(CodeObject co) {
+	co.pragma.endLine = t.line;
+	co.pragma.endColumn = t.col + t.val.Length;
 }
 
 void Error (string s) {
@@ -67,7 +72,7 @@ void Error (string s) {
 			t = la;
 			la = scanner.Scan();
 			if (la.kind <= maxT) { ++errDist; break; }
-				if (la.kind == 46) {
+				if (la.kind == 51) {
 				}
 
 			la = t;
@@ -117,7 +122,7 @@ void Error (string s) {
 		}
 	}
 
-	void Statements(List<Statement>statements) {
+	void Statements(List<Statement> statements) {
 		Statement stat; 
 		while (StartOf(1)) {
 			if (la.kind == 9) {
@@ -139,7 +144,7 @@ void Error (string s) {
 			Get();
 		} else if (la.kind == 1) {
 			Get();
-		} else SynErr(46);
+		} else SynErr(51);
 		Expect(11);
 	}
 
@@ -170,15 +175,19 @@ void Error (string s) {
 			IzStatement(out stat);
 			break;
 		}
-		case 1: {
-			FuncCallStatement(out stat);
+		case 30: case 31: {
+			QuitStatement(out stat);
 			break;
 		}
-		case 30: {
+		case 35: {
 			AssignmentStatement(out stat);
 			break;
 		}
-		default: SynErr(47); break;
+		case 32: case 33: {
+			PrintStatement(out stat);
+			break;
+		}
+		default: SynErr(52); break;
 		}
 	}
 
@@ -197,6 +206,7 @@ void Error (string s) {
 			}
 		}
 		LValue(out ins.dest);
+		SetEndPragma(stat); 
 	}
 
 	void IHasAStatement(out Statement stat) {
@@ -205,7 +215,7 @@ void Error (string s) {
 		Expect(10);
 		Expect(18);
 		Expect(1);
-		vds.name = t.val; 
+		vds.name = t.val; SetEndPragma(stat); 
 	}
 
 	void LoopStatement(out Statement stat) {
@@ -214,7 +224,7 @@ void Error (string s) {
 		Expect(6);
 		Expect(20);
 		Expect(1);
-		ls.name = t.val; 
+		ls.name = t.val; SetEndPragma(stat) 
 		while (la.kind == 5) {
 			Get();
 		}
@@ -225,6 +235,7 @@ void Error (string s) {
 	void GTFOStatement(out Statement stat) {
 		stat = new BreakStatement(GetPragma(la)); 
 		Expect(16);
+		SetEndPragma(stat); 
 	}
 
 	void BinaryOpStatement(out Statement stat) {
@@ -241,12 +252,13 @@ void Error (string s) {
 		} else if (la.kind == 25) {
 			Get();
 			bos.op = OpCodes.Div; 
-		} else SynErr(48);
+		} else SynErr(53);
 		LValue(out bos.lval);
 		Expect(26);
 		if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
 			Expression(out bos.amount);
 		}
+		SetEndPragma(stat); 
 	}
 
 	void IzStatement(out Statement stat) {
@@ -254,6 +266,7 @@ void Error (string s) {
 		Expect(27);
 		Expression(out cs.condition);
 		Expect(11);
+		SetEndPragma(stat); 
 		while (la.kind == 5) {
 			Get();
 		}
@@ -274,122 +287,151 @@ void Error (string s) {
 		Expect(21);
 	}
 
-	void FuncCallStatement(out Statement stat) {
-		FuncCallStatement fcs = new FuncCallStatement(GetPragma(la)); stat = fcs; Expression parm; 
-		Expect(1);
-		fcs.name = t.val; 
-		if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
-			Unary(out parm);
-			fcs.arguments.Add(parm); 
-			while (la.kind == 1 || la.kind == 2 || la.kind == 4) {
-				Unary(out parm);
-				fcs.arguments.Add(parm); 
+	void QuitStatement(out Statement stat) {
+		QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; 
+		if (la.kind == 30) {
+			Get();
+			qs.code = 0; 
+		} else if (la.kind == 31) {
+			Get();
+			qs.code = 1; 
+		} else SynErr(54);
+		if (la.kind == 2) {
+			Get();
+			qs.code = int.Parse(t.val); 
+			if (la.kind == 4) {
+				Get();
+				qs.message = t.val.Substring(1, t.val.Length - 2); 
 			}
 		}
+		SetEndPragma(stat); 
 	}
 
 	void AssignmentStatement(out Statement stat) {
 		AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; 
-		Expect(30);
+		Expect(35);
 		LValue(out ass.lval);
-		Expect(31);
+		Expect(36);
 		Expression(out ass.rval);
+		SetEndPragma(stat); 
+	}
+
+	void PrintStatement(out Statement stat) {
+		PrintStatement ps = new PrintStatement(GetPragma(la)); stat = ps; 
+		if (la.kind == 32) {
+			Get();
+		} else if (la.kind == 33) {
+			Get();
+			ps.stderr = true; 
+		} else SynErr(55);
+		Expression(out ps.message);
+		if (la.kind == 34) {
+			Get();
+			ps.newline = false; 
+		}
+		SetEndPragma(stat); 
 	}
 
 	void LValue(out LValue lv) {
 		lv = null; 
 		if (!IsArrayIndex()) {
 			Expect(1);
-			lv = new VariableLValue(GetPragma(la), t.val); 
+			lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(); 
 		} else if (la.kind == 1 || la.kind == 2) {
 			ArrayIndex(out lv);
-		} else SynErr(49);
+		} else SynErr(56);
 	}
 
 	void Expression(out Expression exp) {
 		Expression left; 
 		Unary(out left);
 		AndExpression(out exp, left);
+		SetEndPragma(exp); 
 	}
 
 	void Unary(out Expression exp) {
 		exp = null; 
 		if (la.kind == _intCon && !IsArrayIndex()) {
 			Expect(2);
-			exp = new PrimitiveExpression(GetPragma(la), int.Parse(t.val)); 
+			exp = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(exp); 
 		} else if (la.kind == 1 || la.kind == 2) {
 			LValueExpression lve = new LValueExpression(GetPragma(la)); exp = lve; 
 			LValue(out lve.lval);
+			SetEndPragma(exp); 
 		} else if (la.kind == 4) {
 			Get();
-			exp = new PrimitiveExpression(GetPragma(la), t.val.Substring(1, t.val.Length - 2)); 
-		} else SynErr(50);
+			exp = new PrimitiveExpression(GetPragma(t), t.val.Substring(1, t.val.Length - 2)); SetEndPragma(exp); 
+		} else SynErr(57);
 	}
 
 	void AndExpression(out Expression exp, Expression left) {
 		XorExpression(out exp, left);
-		while (la.kind == 32) {
+		while (la.kind == 37) {
 			Get();
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.And; ibs.left = exp; exp = ibs; 
 			Unary(out ibs.right);
 			XorExpression(out ibs.right, ibs.right);
 		}
+		SetEndPragma(exp); 
 	}
 
 	void XorExpression(out Expression exp, Expression left) {
 		OrExpression(out exp, left);
-		while (la.kind == 33) {
+		while (la.kind == 38) {
 			Get();
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Xor; ibs.left = exp; exp = ibs; 
 			Unary(out ibs.right);
 			OrExpression(out ibs.right, ibs.right);
 		}
+		SetEndPragma(exp); 
 	}
 
 	void OrExpression(out Expression exp, Expression left) {
 		ComparisonExpression(out exp, left);
-		while (la.kind == 34) {
+		while (la.kind == 39) {
 			Get();
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Or; ibs.left = exp; exp = ibs; 
 			Unary(out ibs.right);
 			ComparisonExpression(out ibs.right, ibs.right);
 		}
+		SetEndPragma(exp); 
 	}
 
 	void ComparisonExpression(out Expression exp, Expression left) {
 		ArithmeticExpression(out exp, left);
 		while (StartOf(2)) {
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; 
-			if (la.kind == 35) {
+			if (la.kind == 40) {
 				Get();
 				ibs.negate = true; 
 			}
-			if (la.kind == 36) {
+			if (la.kind == 41) {
 				Get();
 				ibs.op = OpCodes.Cgt; 
-				if (la.kind == 37) {
+				if (la.kind == 42) {
 					Get();
 				}
-			} else if (la.kind == 38) {
+			} else if (la.kind == 43) {
 				Get();
 				ibs.op = OpCodes.Clt; 
-				if (la.kind == 37) {
+				if (la.kind == 42) {
 					Get();
 				}
-			} else if (la.kind == 39) {
+			} else if (la.kind == 44) {
 				Get();
 				ibs.op = OpCodes.Ceq; 
-			} else SynErr(51);
+			} else SynErr(58);
 			Unary(out ibs.right);
 			ArithmeticExpression(out ibs.right, ibs.right);
 		}
+		SetEndPragma(exp); 
 	}
 
 	void ArithmeticExpression(out Expression exp, Expression left) {
 		MultiplicationExpression(out exp, left);
-		while (la.kind == 40 || la.kind == 41) {
+		while (la.kind == 45 || la.kind == 46) {
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; 
-			if (la.kind == 40) {
+			if (la.kind == 45) {
 				Get();
 				ibs.op = OpCodes.Add; 
 			} else {
@@ -399,13 +441,14 @@ void Error (string s) {
 			Unary(out ibs.right);
 			MultiplicationExpression(out ibs.right, ibs.right);
 		}
+		SetEndPragma(exp); 
 	}
 
 	void MultiplicationExpression(out Expression exp, Expression left) {
 		exp = left; 
-		while (la.kind == 42 || la.kind == 43) {
+		while (la.kind == 47 || la.kind == 48) {
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; 
-			if (la.kind == 42) {
+			if (la.kind == 47) {
 				Get();
 				ibs.op = OpCodes.Mul; 
 			} else {
@@ -414,20 +457,22 @@ void Error (string s) {
 			}
 			Unary(out ibs.right);
 		}
+		SetEndPragma(exp); 
 	}
 
 	void ArrayIndex(out LValue lv) {
 		ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; 
 		if (la.kind == 1) {
 			Get();
-			alv.index = new LValueExpression(GetPragma(la), new VariableLValue(GetPragma(la), t.val)); 
+			alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); 
 		} else if (la.kind == 2) {
 			Get();
-			alv.index = new PrimitiveExpression(GetPragma(la), int.Parse(t.val)); 
-		} else SynErr(52);
+			alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); 
+		} else SynErr(59);
 		Expect(6);
-		Expect(44);
+		Expect(49);
 		LValue(out alv.lval);
+		SetEndPragma(alv); 
 	}
 
 
@@ -442,9 +487,9 @@ void Error (string s) {
 	}
 	
 	bool[,] set = {
-		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
-		{x,T,x,x, x,x,x,x, x,T,x,x, T,x,x,x, T,T,x,T, x,x,T,T, T,T,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,T,T, x,x,x,x, x,x,x}
+		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
+		{x,x,x,x, x,x,x,x, x,T,x,x, T,x,x,x, T,T,x,T, x,x,T,T, T,T,x,T, x,x,T,T, T,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,T, T,x,x,x, x,x,x,x}
 
 	};
 } // end Parser
@@ -486,29 +531,36 @@ public class Errors : System.Collections.Generic.List<string> {
 			case 27: s = "\"iz\" expected"; break;
 			case 28: s = "\"yarly\" expected"; break;
 			case 29: s = "\"nowai\" expected"; break;
-			case 30: s = "\"lol\" expected"; break;
-			case 31: s = "\"r\" expected"; break;
-			case 32: s = "\"and\" expected"; break;
-			case 33: s = "\"xor\" expected"; break;
-			case 34: s = "\"or\" expected"; break;
-			case 35: s = "\"not\" expected"; break;
-			case 36: s = "\"bigr\" expected"; break;
-			case 37: s = "\"than\" expected"; break;
-			case 38: s = "\"smalr\" expected"; break;
-			case 39: s = "\"liek\" expected"; break;
-			case 40: s = "\"up\" expected"; break;
-			case 41: s = "\"nerf\" expected"; break;
-			case 42: s = "\"tiemz\" expected"; break;
-			case 43: s = "\"ovar\" expected"; break;
-			case 44: s = "\"mah\" expected"; break;
-			case 45: s = "??? expected"; break;
-			case 46: s = "invalid CanHasStatement"; break;
-			case 47: s = "invalid Statement"; break;
-			case 48: s = "invalid BinaryOpStatement"; break;
-			case 49: s = "invalid LValue"; break;
-			case 50: s = "invalid Unary"; break;
-			case 51: s = "invalid ComparisonExpression"; break;
-			case 52: s = "invalid ArrayIndex"; break;
+			case 30: s = "\"byes\" expected"; break;
+			case 31: s = "\"diaf\" expected"; break;
+			case 32: s = "\"visible\" expected"; break;
+			case 33: s = "\"invisible\" expected"; break;
+			case 34: s = "\"!\" expected"; break;
+			case 35: s = "\"lol\" expected"; break;
+			case 36: s = "\"r\" expected"; break;
+			case 37: s = "\"and\" expected"; break;
+			case 38: s = "\"xor\" expected"; break;
+			case 39: s = "\"or\" expected"; break;
+			case 40: s = "\"not\" expected"; break;
+			case 41: s = "\"bigr\" expected"; break;
+			case 42: s = "\"than\" expected"; break;
+			case 43: s = "\"smalr\" expected"; break;
+			case 44: s = "\"liek\" expected"; break;
+			case 45: s = "\"up\" expected"; break;
+			case 46: s = "\"nerf\" expected"; break;
+			case 47: s = "\"tiemz\" expected"; break;
+			case 48: s = "\"ovar\" expected"; break;
+			case 49: s = "\"mah\" expected"; break;
+			case 50: s = "??? expected"; break;
+			case 51: s = "invalid CanHasStatement"; break;
+			case 52: s = "invalid Statement"; break;
+			case 53: s = "invalid BinaryOpStatement"; break;
+			case 54: s = "invalid QuitStatement"; break;
+			case 55: s = "invalid PrintStatement"; break;
+			case 56: s = "invalid LValue"; break;
+			case 57: s = "invalid Unary"; break;
+			case 58: s = "invalid ComparisonExpression"; break;
+			case 59: s = "invalid ArrayIndex"; break;
 
 			default: s = "error " + n; break;
 		}
