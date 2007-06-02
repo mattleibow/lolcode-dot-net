@@ -9,8 +9,14 @@ namespace notdot.LOLCode.lolc
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
+            if (args.Length != 1)
+            {
+                Console.Error.WriteLine("Usage: lolc <filename>");
+                return 1;
+            }
+
             LOLCodeCodeProvider compiler = new LOLCodeCodeProvider();
             CompilerParameters cparam = new CompilerParameters();
             cparam.GenerateExecutable = true;
@@ -24,10 +30,12 @@ namespace notdot.LOLCode.lolc
             if (results.Errors.HasErrors)
             {
                 Console.Out.WriteLine("Failed to compile.");
+                return 1;
             }
             else
             {
                 Console.Out.WriteLine("Successfully compiled.");
+                return 0;
             }
         }
     }
