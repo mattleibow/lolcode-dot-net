@@ -12,6 +12,7 @@ HAI
   
   BTW Input and output
   VISIBLE "What is your name?". GIMMEH NAME
+  VISIBLE "Your name is "! VISIBLE NAME! VISIBLE "? What a weird name."
   VISIBLE "Count from what? "!
   GIMMEH WORD MINIMUM
   VISIBLE "Count to what? "!

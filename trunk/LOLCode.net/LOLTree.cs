@@ -52,13 +52,16 @@ namespace notdot.LOLCode
             MethodBuilder main = cls.DefineMethod("Main", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new Type[] { });
             ILGenerator gen = main.GetILGenerator();
 
-            locals.Add(new Dictionary<string, LocalBuilder>());
+            //locals.Add(new Dictionary<string, LocalBuilder>());
+            BeginScope(gen);
 
             foreach (Statement stat in statements)
                 stat.Emit(this, gen);
 
             gen.Emit(OpCodes.Ldc_I4_0);
             gen.Emit(OpCodes.Ret);
+
+            EndScope(gen);
 
             Type t = cls.CreateType();
             return t.GetMethod("Main");
@@ -169,6 +172,11 @@ namespace notdot.LOLCode
             LocalBuilder local = prog.GetLocal(name);
             gen.Emit(OpCodes.Ldloc, local);
             Program.CastObject(t, gen);
+            if (t == typeof(Dictionary<object, object>))
+            {
+                gen.Emit(OpCodes.Dup);
+                gen.Emit(OpCodes.Stloc, local);
+            }
         }
 
         public override void StartSet(Program prog, Type t, ILGenerator gen)
@@ -203,10 +211,17 @@ namespace notdot.LOLCode
             index.Emit(prog, typeof(object), gen);
 
             //Get the value
-            gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("GetObject"), null);
+            if (t == typeof(Dictionary<object, object>))
+            {
+                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("GetDict"), null);
+            }
+            else
+            {
+                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("GetObject"), null);
 
-            //Cast it to the appropriate type
-            Program.CastObject(t, gen);
+                //Cast it to the appropriate type
+                Program.CastObject(t, gen);
+            }
         }
 
         public override void StartSet(Program prog, Type t, ILGenerator gen)
@@ -223,7 +238,7 @@ namespace notdot.LOLCode
             Program.WrapObject(t, gen);
 
             //Set
-            gen.EmitCall(OpCodes.Callvirt, typeof(Dictionary<object, object>).GetProperty("this", new Type[] { typeof(object) }).GetSetMethod(), null);
+            gen.EmitCall(OpCodes.Callvirt, typeof(Dictionary<object, object>).GetProperty("Item", new Type[] { typeof(object) }).GetSetMethod(), null);
         }
 
         public ArrayIndexLValue(CodePragma loc) : base(loc) { }
@@ -512,12 +527,14 @@ namespace notdot.LOLCode
                     gen.EmitCall(OpCodes.Call, typeof(char).GetMethod("ToString", new Type[] { typeof(char) }), null);
                     break;
                 case IOAmount.Word:
-                    gen.EmitCall(OpCodes.Callvirt, typeof(TextReader).GetMethod("ReadLine", new Type[0]), null);
-                    break;
-                case IOAmount.Line:
                     gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ReadWord"), null);
                     break;
+                case IOAmount.Line:
+                    gen.EmitCall(OpCodes.Callvirt, typeof(TextReader).GetMethod("ReadLine", new Type[0]), null);
+                    break;
             }
+
+            dest.EndSet(prog, typeof(string), gen);
         }
 
         public InputStatement(CodePragma loc) : base(loc) { }

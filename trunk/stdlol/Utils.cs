@@ -9,13 +9,43 @@ namespace notdot.LOLCode.stdlol
     {
         public static string ReadWord(TextReader reader)
         {
-            return "foo";
+            StringBuilder sb = new StringBuilder();
+            int c;
+            while (true)
+            {
+                c = reader.Read();
+                if (c == -1)
+                    return "";
+                if (!char.IsWhiteSpace((char)c))
+                    break;
+            }
+
+            sb.Append(c);
+            while (true)
+            {
+                c = reader.Read();
+                if (c == -1 || char.IsWhiteSpace((char)c))
+                    return sb.ToString();
+                sb.Append(c);
+            }
         }
 
         public static object GetObject(Dictionary<object, object> dict, object key)
         {
             object ret;
             dict.TryGetValue(key, out ret);
+            return ret;
+        }
+
+        public static object GetDict(Dictionary<object, object> dict, object key)
+        {
+            object obj;
+            Dictionary<object, object> ret;
+            dict.TryGetValue(key, out obj);
+            if (obj is Dictionary<object, object>)
+                return obj as Dictionary<object, object>;
+            ret = ToDict(obj);
+            dict[key] = ret;
             return ret;
         }
 
