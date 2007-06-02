@@ -3,6 +3,10 @@ Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LOLCode.net", "LOLCode.net\LOLCode.net.csproj", "{FA696149-9CFD-4F15-BA1E-FE27B397C786}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "stdlol", "stdlol\stdlol.csproj", "{AD2F084A-C2C4-4BD5-89CA-EB656B6415BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "lolc", "lolc\lolc.csproj", "{9725297F-3529-474D-9BF3-38723D79CFA6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -13,6 +17,14 @@ Global
 		{FA696149-9CFD-4F15-BA1E-FE27B397C786}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FA696149-9CFD-4F15-BA1E-FE27B397C786}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FA696149-9CFD-4F15-BA1E-FE27B397C786}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AD2F084A-C2C4-4BD5-89CA-EB656B6415BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AD2F084A-C2C4-4BD5-89CA-EB656B6415BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AD2F084A-C2C4-4BD5-89CA-EB656B6415BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AD2F084A-C2C4-4BD5-89CA-EB656B6415BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9725297F-3529-474D-9BF3-38723D79CFA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9725297F-3529-474D-9BF3-38723D79CFA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9725297F-3529-474D-9BF3-38723D79CFA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9725297F-3529-474D-9BF3-38723D79CFA6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

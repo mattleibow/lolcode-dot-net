@@ -287,7 +287,8 @@ internal class Scanner {
 	}
 
 	Token NextToken() {
-			ch == 9 || ch == 13
+		while (ch == ' ' || ch == 9 || ch == 13) NextCh();
+
 		t = new Token();
 		t.pos = pos; t.col = col; t.line = line; 
 		int state;
@@ -297,6 +298,125 @@ internal class Scanner {
 		switch (state) {
 			case -1: { t.kind = eofSym; break; } // NextCh already done
 			case 0: { t.kind = noSym; break; }   // NextCh already done
+			case 1:
+				if (ch >= '0' && ch <= '9' || ch == '_' || ch >= 'a' && ch <= 'z') {AddCh(); goto case 1;}
+				else {t.kind = 1; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
+			case 2:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 2;}
+				else if (ch == 'e') {AddCh(); goto case 3;}
+				else {t.kind = 3; break;}
+			case 3:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 5;}
+				else if (ch == '+' || ch == '-') {AddCh(); goto case 4;}
+				else {t.kind = noSym; break;}
+			case 4:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 5;}
+				else {t.kind = noSym; break;}
+			case 5:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 5;}
+				else {t.kind = 3; break;}
+			case 6:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 7;}
+				else {t.kind = noSym; break;}
+			case 7:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 7;}
+				else if (ch == 'e') {AddCh(); goto case 8;}
+				else {t.kind = 3; break;}
+			case 8:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 10;}
+				else if (ch == '+' || ch == '-') {AddCh(); goto case 9;}
+				else {t.kind = noSym; break;}
+			case 9:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 10;}
+				else {t.kind = noSym; break;}
+			case 10:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 10;}
+				else {t.kind = 3; break;}
+			case 11:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 13;}
+				else if (ch == '+' || ch == '-') {AddCh(); goto case 12;}
+				else {t.kind = noSym; break;}
+			case 12:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 13;}
+				else {t.kind = noSym; break;}
+			case 13:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 13;}
+				else {t.kind = 3; break;}
+			case 14:
+				if (ch <= 9 || ch >= 11 && ch <= 12 || ch >= 14 && ch <= '!' || ch >= '#' && ch <= '[' || ch >= ']' && ch <= 65535) {AddCh(); goto case 14;}
+				else if (ch == '"') {AddCh(); goto case 15;}
+				else {t.kind = noSym; break;}
+			case 15:
+				{t.kind = 4; break;}
+			case 16:
+				{t.kind = 5; break;}
+			case 17:
+				if (ch == 10) {AddCh(); goto case 18;}
+				else if (ch <= 9 || ch >= 11 && ch <= 65535) {AddCh(); goto case 17;}
+				else {t.kind = noSym; break;}
+			case 18:
+				{t.kind = 51; break;}
+			case 19:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 19;}
+				else if (ch == '.') {AddCh(); goto case 6;}
+				else if (ch == 'e') {AddCh(); goto case 11;}
+				else {t.kind = 2; break;}
+			case 20:
+				if (ch >= '0' && ch <= '9') {AddCh(); goto case 2;}
+				else {t.kind = 5; break;}
+			case 21:
+				if (ch >= '0' && ch <= '9' || ch == '_' || ch >= 'a' && ch <= 's' || ch >= 'u' && ch <= 'z') {AddCh(); goto case 1;}
+				else if (ch == 't') {AddCh(); goto case 22;}
+				else {t.kind = 1; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
+			case 22:
+				if (ch >= '0' && ch <= '9' || ch == '_' || ch >= 'a' && ch <= 'v' || ch >= 'x' && ch <= 'z') {AddCh(); goto case 1;}
+				else if (ch == 'w') {AddCh(); goto case 23;}
+				else {t.kind = 1; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
+			case 23:
+				if (ch >= '0' && ch <= '9' || ch == '_' || ch >= 'a' && ch <= 'z') {AddCh(); goto case 23;}
+				else if (ch == 10) {AddCh(); goto case 18;}
+				else if (ch <= 9 || ch >= 11 && ch <= '/' || ch >= ':' && ch <= '^' || ch == '`' || ch >= '{' && ch <= 65535) {AddCh(); goto case 17;}
+				else {t.kind = 1; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
+			case 24:
+				{t.kind = 11; break;}
+			case 25:
+				{t.kind = 26; break;}
+			case 26:
+				if (ch == '!') {AddCh(); goto case 25;}
+				else {t.kind = 34; break;}
 
 		}
-		t.val = n
+		t.val = new String(tval, 0, tlen);
+		return t;
+	}
+	
+	// get the next token (possibly a token already seen during peeking)
+	public Token Scan () {
+		if (tokens.next == null) {
+			return NextToken();
+		} else {
+			pt = tokens = tokens.next;
+			return tokens;
+		}
+	}
+
+	// peek for the next token, ignore pragmas
+	public Token Peek () {
+		if (pt.next == null) {
+			do {
+				pt = pt.next = NextToken();
+			} while (pt.kind > maxT); // skip pragmas
+		} else {
+			do {
+				pt = pt.next;
+			} while (pt.kind > maxT);
+		}
+		return pt;
+	}
+	
+	// make sure that peeking starts at the current scan position
+	public void ResetPeek () { pt = tokens; }
+
+} // end Scanner
+
+}
