@@ -26,6 +26,7 @@ Coco/R itself) does not fall under the GNU General Public License.
 ----------------------------------------------------------------------*/
 -->begin
 using System;
+using System.CodeDom.Compiler;
 
 -->namespace
 
@@ -46,16 +47,16 @@ internal partial class Parser {
 
 	public Parser(Scanner scanner) {
 		this.scanner = scanner;
-		errors = new Errors();
+		//errors = new Errors();
 	}
 
 	void SynErr (int n) {
-		if (errDist >= minErrDist) errors.SynErr(la.line, la.col, n);
+		if (errDist >= minErrDist) errors.SynErr(filename, la.line, la.col, n);
 		errDist = 0;
 	}
 
 	public void SemErr (string msg) {
-		if (errDist >= minErrDist) errors.SemErr(t.line, t.col, msg);
+		if (errDist >= minErrDist) errors.SemErr(filename, t.line, t.col, msg);
 		errDist = 0;
 	}
 	
@@ -115,32 +116,38 @@ internal partial class Parser {
 } // end Parser
 
 
-public class Errors : System.Collections.Generic.List<string> {
-	public string errMsgFormat = "-- line {0} col {1}: {2}"; // 0=line, 1=column, 2=text
+public class Errors {
+	//public string errMsgFormat = "-- \"{0}\" line {1} col {2}: {3}"; // 0=file, 1=line, 2=column, 3=text
+
+	private CompilerErrorCollection cec;
+	
+	public Errors(CompilerErrorCollection c) {
+		this.cec = c;
+	}
   
-	public void SynErr (int line, int col, int n) {
+	public void SynErr (string file, int line, int col, int n) {
 		string s;
 		switch (n) {
 -->errors
 			default: s = "error " + n; break;
 		}
-		base.Add(string.Format(errMsgFormat, line, col, s));
+		cec.Add(new CompilerError(file, line, col, n.ToString(), s));
 	}
 
-	public void SemErr (int line, int col, string s) {
-		base.Add(string.Format(errMsgFormat, line, col, s));
+	public void SemErr (string file, int line, int col, string s) {
+		cec.Add(new CompilerError(file, line, col, "", s));
 	}
 	
 	public void SemErr (string s) {
-		base.Add(s);
+		cec.Add(new CompilerError(null, 0, 0, "", s));
 	}
 	
-	public void Warning (int line, int col, string s) {
-		base.Add(string.Format(errMsgFormat, line, col, s));
+	public void Warning (string file, int line, int col, string s) {
+		cec.Add(new CompilerError(file, line, col, "", s));
 	}
 	
 	public void Warning(string s) {
-		base.Add(s);
+		cec.Add(new CompilerError(null, 0, 0, "", s));
 	}
 } // Errors
 

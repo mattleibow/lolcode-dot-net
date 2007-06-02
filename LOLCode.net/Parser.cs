@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection.Emit;
 
 using System;
+using System.CodeDom.Compiler;
 
 namespace notdot.LOLCode {
 
@@ -29,41 +30,20 @@ internal partial class Parser {
 	public Token la;   // lookahead token
 	int errDist = minErrDist;
 
-public string filename;
-public Program program;
-
-private bool IsArrayIndex() {
-	return scanner.Peek().kind == _in;
-}
-
-private CodePragma GetPragma(Token tok) {
-	return new CodePragma(filename, tok.line, tok.col);
-}
-
-private void SetEndPragma(CodeObject co) {
-	co.pragma.endLine = t.line;
-	co.pragma.endColumn = t.col + t.val.Length;
-}
-
-void Error (string s) {
-  if (errDist >= minErrDist) errors.SemErr(la.line, la.col, s);
-  errDist = 0;
-}
-
 
 
 	public Parser(Scanner scanner) {
 		this.scanner = scanner;
-		errors = new Errors();
+		//errors = new Errors();
 	}
 
 	void SynErr (int n) {
-		if (errDist >= minErrDist) errors.SynErr(la.line, la.col, n);
+		if (errDist >= minErrDist) errors.SynErr(filename, la.line, la.col, n);
 		errDist = 0;
 	}
 
 	public void SemErr (string msg) {
-		if (errDist >= minErrDist) errors.SemErr(t.line, t.col, msg);
+		if (errDist >= minErrDist) errors.SemErr(filename, t.line, t.col, msg);
 		errDist = 0;
 	}
 	
@@ -110,7 +90,6 @@ void Error (string s) {
 	}
 	
 	void LOLCode() {
-		program = new Program(GetPragma(la)); 
 		Expect(7);
 		while (la.kind == 5) {
 			Get();
@@ -215,7 +194,7 @@ void Error (string s) {
 		Expect(10);
 		Expect(18);
 		Expect(1);
-		vds.name = t.val; SetEndPragma(stat); 
+		vds.name = t.val; CreateLocal(vds.name); SetEndPragma(stat); 
 	}
 
 	void LoopStatement(out Statement stat) {
@@ -224,12 +203,13 @@ void Error (string s) {
 		Expect(6);
 		Expect(20);
 		Expect(1);
-		ls.name = t.val; SetEndPragma(stat) 
+		ls.name = t.val; SetEndPragma(stat); BeginScope(); 
 		while (la.kind == 5) {
 			Get();
 		}
 		Statements(ls.statements);
 		Expect(21);
+		EndScope(); 
 	}
 
 	void GTFOStatement(out Statement stat) {
@@ -265,7 +245,11 @@ void Error (string s) {
 		ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; Statement st; 
 		Expect(27);
 		Expression(out cs.condition);
-		Expect(11);
+		if (la.kind == 11) {
+			Get();
+		} else if (la.kind == 5) {
+			Get();
+		} else SynErr(54);
 		SetEndPragma(stat); 
 		while (la.kind == 5) {
 			Get();
@@ -275,14 +259,18 @@ void Error (string s) {
 			while (la.kind == 5) {
 				Get();
 			}
-			Statements(cs.trueStatements);
 		}
+		BeginScope(); 
+		Statements(cs.trueStatements);
+		EndScope(); 
 		if (la.kind == 29) {
 			Get();
 			while (la.kind == 5) {
 				Get();
 			}
+			BeginScope(); 
 			Statements(cs.falseStatements);
+			EndScope(); 
 		}
 		Expect(21);
 	}
@@ -291,17 +279,15 @@ void Error (string s) {
 		QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; 
 		if (la.kind == 30) {
 			Get();
-			qs.code = 0; 
+			qs.code = new PrimitiveExpression(GetPragma(la), 0); 
 		} else if (la.kind == 31) {
 			Get();
-			qs.code = 1; 
-		} else SynErr(54);
-		if (la.kind == 2) {
-			Get();
-			qs.code = int.Parse(t.val); 
-			if (la.kind == 4) {
-				Get();
-				qs.message = t.val.Substring(1, t.val.Length - 2); 
+			qs.code = new PrimitiveExpression(GetPragma(la), 0); 
+		} else SynErr(55);
+		if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
+			Expression(out qs.code);
+			if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
+				Expression(out qs.message);
 			}
 		}
 		SetEndPragma(stat); 
@@ -323,7 +309,7 @@ void Error (string s) {
 		} else if (la.kind == 33) {
 			Get();
 			ps.stderr = true; 
-		} else SynErr(55);
+		} else SynErr(56);
 		Expression(out ps.message);
 		if (la.kind == 34) {
 			Get();
@@ -336,10 +322,10 @@ void Error (string s) {
 		lv = null; 
 		if (!IsArrayIndex()) {
 			Expect(1);
-			lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(); 
+			ReferenceLocal(t.val); lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(lv); 
 		} else if (la.kind == 1 || la.kind == 2) {
 			ArrayIndex(out lv);
-		} else SynErr(56);
+		} else SynErr(57);
 	}
 
 	void Expression(out Expression exp) {
@@ -361,7 +347,7 @@ void Error (string s) {
 		} else if (la.kind == 4) {
 			Get();
 			exp = new PrimitiveExpression(GetPragma(t), t.val.Substring(1, t.val.Length - 2)); SetEndPragma(exp); 
-		} else SynErr(57);
+		} else SynErr(58);
 	}
 
 	void AndExpression(out Expression exp, Expression left) {
@@ -420,7 +406,7 @@ void Error (string s) {
 			} else if (la.kind == 44) {
 				Get();
 				ibs.op = OpCodes.Ceq; 
-			} else SynErr(58);
+			} else SynErr(59);
 			Unary(out ibs.right);
 			ArithmeticExpression(out ibs.right, ibs.right);
 		}
@@ -464,11 +450,11 @@ void Error (string s) {
 		ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; 
 		if (la.kind == 1) {
 			Get();
-			alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); 
+			ReferenceLocal(t.val); alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); 
 		} else if (la.kind == 2) {
 			Get();
 			alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); 
-		} else SynErr(59);
+		} else SynErr(60);
 		Expect(6);
 		Expect(49);
 		LValue(out alv.lval);
@@ -495,10 +481,16 @@ void Error (string s) {
 } // end Parser
 
 
-public class Errors : System.Collections.Generic.List<string> {
-	public string errMsgFormat = "-- line {0} col {1}: {2}"; // 0=line, 1=column, 2=text
+public class Errors {
+	//public string errMsgFormat = "-- \"{0}\" line {1} col {2}: {3}"; // 0=file, 1=line, 2=column, 3=text
+
+	private CompilerErrorCollection cec;
+	
+	public Errors(CompilerErrorCollection c) {
+		this.cec = c;
+	}
   
-	public void SynErr (int line, int col, int n) {
+	public void SynErr (string file, int line, int col, int n) {
 		string s;
 		switch (n) {
 			case 0: s = "EOF expected"; break;
@@ -555,32 +547,33 @@ public class Errors : System.Collections.Generic.List<string> {
 			case 51: s = "invalid CanHasStatement"; break;
 			case 52: s = "invalid Statement"; break;
 			case 53: s = "invalid BinaryOpStatement"; break;
-			case 54: s = "invalid QuitStatement"; break;
-			case 55: s = "invalid PrintStatement"; break;
-			case 56: s = "invalid LValue"; break;
-			case 57: s = "invalid Unary"; break;
-			case 58: s = "invalid ComparisonExpression"; break;
-			case 59: s = "invalid ArrayIndex"; break;
+			case 54: s = "invalid IzStatement"; break;
+			case 55: s = "invalid QuitStatement"; break;
+			case 56: s = "invalid PrintStatement"; break;
+			case 57: s = "invalid LValue"; break;
+			case 58: s = "invalid Unary"; break;
+			case 59: s = "invalid ComparisonExpression"; break;
+			case 60: s = "invalid ArrayIndex"; break;
 
 			default: s = "error " + n; break;
 		}
-		base.Add(string.Format(errMsgFormat, line, col, s));
+		cec.Add(new CompilerError(file, line, col, n.ToString(), s));
 	}
 
-	public void SemErr (int line, int col, string s) {
-		base.Add(string.Format(errMsgFormat, line, col, s));
+	public void SemErr (string file, int line, int col, string s) {
+		cec.Add(new CompilerError(file, line, col, "", s));
 	}
 	
 	public void SemErr (string s) {
-		base.Add(s);
+		cec.Add(new CompilerError(null, 0, 0, "", s));
 	}
 	
-	public void Warning (int line, int col, string s) {
-		base.Add(string.Format(errMsgFormat, line, col, s));
+	public void Warning (string file, int line, int col, string s) {
+		cec.Add(new CompilerError(file, line, col, "", s));
 	}
 	
 	public void Warning(string s) {
-		base.Add(s);
+		cec.Add(new CompilerError(null, 0, 0, "", s));
 	}
 } // Errors
 

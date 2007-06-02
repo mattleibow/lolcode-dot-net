@@ -2,10 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.CodeDom.Compiler;
+using System.IO;
+using System.Reflection.Emit;
+using System.Reflection;
+using System.Threading;
+using System.Diagnostics;
 
-namespace LOLCode.net
+namespace notdot.LOLCode
 {
-    class LOLCodeCodeProvider : CodeDomProvider, ICodeCompiler
+    public class LOLCodeCodeProvider : CodeDomProvider, ICodeCompiler
     {
 
         public override ICodeCompiler CreateCompiler()
@@ -37,22 +42,73 @@ namespace LOLCode.net
 
         public CompilerResults CompileAssemblyFromFile(CompilerParameters options, string fileName)
         {
-            throw new Exception("The method or operation is not implemented.");
+            return CompileAssemblyFromFileBatch(options, new string[] { fileName });
         }
 
         public CompilerResults CompileAssemblyFromFileBatch(CompilerParameters options, string[] fileNames)
         {
-            throw new Exception("The method or operation is not implemented.");
+            Stream[] streams = new Stream[fileNames.Length];
+            for (int i = 0; i < streams.Length; i++)
+                streams[i] = File.OpenRead(fileNames[i]);
+
+            return CompileAssemblyFromStreamBatch(options, fileNames, streams);
         }
 
         public CompilerResults CompileAssemblyFromSource(CompilerParameters options, string source)
         {
-            throw new Exception("The method or operation is not implemented.");
+            return CompileAssemblyFromSourceBatch(options, new string[] { source });
         }
 
         public CompilerResults CompileAssemblyFromSourceBatch(CompilerParameters options, string[] sources)
         {
-            throw new Exception("The method or operation is not implemented.");
+            Stream[] streams = new Stream[sources.Length];
+            string[] filenames = new string[sources.Length];
+            for (int i = 0; i < streams.Length; i++)
+            {
+                streams[i] = new MemoryStream(Encoding.UTF8.GetBytes(sources[i]));
+                filenames[i] = "unknown";
+            }
+
+            return CompileAssemblyFromStreamBatch(options, filenames, streams);
+        }
+
+        private CompilerResults CompileAssemblyFromStreamBatch(CompilerParameters options, string[] filenames, Stream[] streams)
+        {
+            AssemblyName name = new AssemblyName();
+            name.Name = options.OutputAssembly;
+
+            AssemblyBuilder ab = Thread.GetDomain().DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave);
+            
+            ConstructorInfo daCtor = typeof(DebuggableAttribute).GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) });
+            CustomAttributeBuilder daBuilder = new CustomAttributeBuilder(daCtor, new object[] { DebuggableAttribute.DebuggingModes.Default | DebuggableAttribute.DebuggingModes.DisableOptimizations });
+            ab.SetCustomAttribute(daBuilder);
+
+            ModuleBuilder mb = ab.DefineDynamicModule(Path.GetFileName(options.OutputAssembly), true);
+
+            CompilerResults ret = new CompilerResults(options.TempFiles);
+            Errors err = new Errors(ret.Errors);
+
+            Program prog = new Program();
+            for (int i = 0; i < streams.Length; i++)
+            {
+                Parser p = Parser.GetParser(mb, prog, filenames[i], streams[i]);
+                p.errors = err;
+                p.Parse();
+            }
+
+            if(ret.Errors.Count > 0)
+                return ret;
+
+            MethodInfo entryMethod = prog.Emit(mb);
+
+            ab.SetEntryPoint(entryMethod);
+
+            if (!options.GenerateInMemory)
+                ab.Save(options.OutputAssembly);
+
+            ret.CompiledAssembly = ab;
+
+            return ret;
         }
 
         #endregion

@@ -3,27 +3,6 @@ using System.Reflection.Emit;
 
 COMPILER LOLCode
 
-public string filename;
-public Program program;
-
-private bool IsArrayIndex() {
-	return scanner.Peek().kind == _in;
-}
-
-private CodePragma GetPragma(Token tok) {
-	return new CodePragma(filename, tok.line, tok.col);
-}
-
-private void SetEndPragma(CodeObject co) {
-	co.pragma.endLine = t.line;
-	co.pragma.endColumn = t.col + t.val.Length;
-}
-
-void Error (string s) {
-  if (errDist >= minErrDist) errors.SemErr(la.line, la.col, s);
-  errDist = 0;
-}
-
 IGNORECASE
 CHARACTERS
 	tab					= '\u0009'.
@@ -64,7 +43,7 @@ IGNORE tab + cr
 
 PRODUCTIONS
 LOLCode
-=													(. program = new Program(GetPragma(la)); .)
+=
 	"HAI" { eos }
 	Statements<program.statements>
 	"KTHXBYE" { eos }
@@ -108,15 +87,15 @@ GTFOStatement<out Statement stat>
 
 IHasAStatement<out Statement stat>
 =													(. VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; .)
-	"I" "HAS" "A" ident								(. vds.name = t.val; SetEndPragma(stat); .)
+	"I" "HAS" "A" ident								(. vds.name = t.val; CreateLocal(vds.name); SetEndPragma(stat); .)
 .
 
 LoopStatement<out Statement stat>
 =													(. LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; .)
-	"IM" "IN" "YR" ident							(. ls.name = t.val; SetEndPragma(stat) .)
+	"IM" "IN" "YR" ident							(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
 	{ eos }
 	Statements<ls.statements>
-	"KTHX"
+	"KTHX"											(. EndScope(); .)
 .
 
 BinaryOpStatement<out Statement stat>
@@ -132,19 +111,22 @@ BinaryOpStatement<out Statement stat>
 IzStatement<out Statement stat>
 =													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; Statement st; .)
 	"IZ" Expression<out cs.condition>
-	"?"												(. SetEndPragma(stat); .)
+	( "?" | eos )									(. SetEndPragma(stat); .)
 	{ eos }
-		[ "YARLY" { eos } Statements<cs.trueStatements> ]
-		[ "NOWAI" { eos } Statements<cs.falseStatements> ]
+		[ "YARLY" { eos } ]							(. BeginScope(); .)
+		Statements<cs.trueStatements>				(. EndScope(); .)
+		[ "NOWAI" { eos }							(. BeginScope(); .)
+		  Statements<cs.falseStatements>			(. EndScope(); .)
+		]
 	"KTHX"
 .
 
 QuitStatement<out Statement stat>					(. QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; .)
 =
-	( "BYES"										(. qs.code = 0; .)
-	| "DIAF"										(. qs.code = 1; .)
-	) [ intCon										(. qs.code = int.Parse(t.val); .)
-	[ stringCon										(. qs.message = t.val.Substring(1, t.val.Length - 2); .)
+	( "BYES"										(. qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
+	| "DIAF"										(. qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
+	) [ Expression<out qs.code>
+	[ Expression<out qs.message>
 	] ]												(. SetEndPragma(stat); .)
 .
 
@@ -226,13 +208,13 @@ Unary<out Expression exp>							(. exp = null; .)
 
 LValue<out LValue lv>								(. lv = null; .)
 =
-	IF(!IsArrayIndex()) ident						(. lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(); .)
+	IF(!IsArrayIndex()) ident						(. ReferenceLocal(t.val); lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(lv); .)
 	| ArrayIndex<out lv>
 .
 
 ArrayIndex<out LValue lv>
 =													(. ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; .)
-	( ident											(. alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); .)
+	( ident											(. ReferenceLocal(t.val); alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); .)
 	| intCon										(. alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); .)
 	) "IN" "MAH" LValue<out alv.lval>				(. SetEndPragma(alv); .)
 .
