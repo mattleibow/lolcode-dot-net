@@ -46,29 +46,52 @@ namespace notdot.LOLCode.stdlol
             return ret;
         }
 
-        public static object GetDict(Dictionary<object, object> dict, object key)
+        public static Dictionary<object,object> GetDict(Dictionary<object, object> dict, object key)
         {
             object obj;
             Dictionary<object, object> ret;
-            dict.TryGetValue(key, out obj);
+
+            if (!dict.TryGetValue(key, out obj))
+                obj = null;
+
             if (obj is Dictionary<object, object>)
+            {
                 return obj as Dictionary<object, object>;
-            ret = ToDict(obj);
-            dict[key] = ret;
-            return ret;
+            }
+            else if (obj == null)
+            {
+                ret = new Dictionary<object, object>();
+                dict[key] = ret;
+                return ret;
+            }
+            else if (obj is string || obj is int)
+            {
+                ret = new Dictionary<object, object>();
+                ret[0] = obj;
+                dict[key] = ret;
+                return ret;
+            }
+
+            throw new InvalidCastException(string.Format("Unknown type \"{0}\"", obj.GetType().Name));            
         }
 
-        public static Dictionary<object, object> ToDict(object obj)
+        public static Dictionary<object, object> ToDict(ref object obj)
         {
-            if (obj is Dictionary<object, object>)
-                return obj as Dictionary<object, object>;
-            if (obj == null)
-                return new Dictionary<object, object>();
-            if (obj is string || obj is int)
-            {
-                Dictionary<object, object> ret = new Dictionary<object, object>();
-                ret[0] = obj;
+            Dictionary<object, object> ret;
 
+            if (obj is Dictionary<object, object>)
+            {
+                return obj as Dictionary<object, object>;
+            } else if (obj == null)
+            {
+                ret = new Dictionary<object, object>();
+                obj = ret;
+                return ret;
+            } else if (obj is string || obj is int)
+            {
+                ret = new Dictionary<object, object>();
+                ret[0] = obj;
+                obj = ret;
                 return ret;
             }
 

@@ -107,26 +107,6 @@ namespace notdot.LOLCode
             throw new KeyNotFoundException();
         }
 
-        public static void CastObject(Type t, ILGenerator gen)
-        {
-            if (t == typeof(Dictionary<object, object>))
-            {
-                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToDict"), null);
-            }
-            else if (t == typeof(int))
-            {
-                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToInt"), null);
-            }
-            else if (t == typeof(string))
-            {
-                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
-            }
-            else if(t != typeof(object))
-            {
-                throw new ArgumentException("Type must be Dictionary<object,object>, int, or string");
-            }
-        }
-
         public static void WrapObject(Type t, ILGenerator gen)
         {
             if (t == typeof(int))
@@ -178,12 +158,26 @@ namespace notdot.LOLCode
         public override void EmitGet(Program prog, Type t, ILGenerator gen)
         {
             LocalBuilder local = prog.GetLocal(name);
-            gen.Emit(OpCodes.Ldloc, local);
-            Program.CastObject(t, gen);
             if (t == typeof(Dictionary<object, object>))
             {
-                gen.Emit(OpCodes.Dup);
-                gen.Emit(OpCodes.Stloc, local);
+                gen.Emit(OpCodes.Ldloca, local);
+                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToDict"), null);
+            }
+            else
+            {
+                gen.Emit(OpCodes.Ldloc, local);
+                if (t == typeof(int))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToInt"), null);
+                }
+                else if (t == typeof(string))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
+                }
+                else if (t != typeof(object))
+                {
+                    throw new ArgumentException("Type must be Dictionary<object,object>, int, or string");
+                }
             }
         }
 
@@ -231,9 +225,18 @@ namespace notdot.LOLCode
             else
             {
                 gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("GetObject"), null);
-
-                //Cast it to the appropriate type
-                Program.CastObject(t, gen);
+                if (t == typeof(int))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToInt"), null);
+                }
+                else if (t == typeof(string))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
+                }
+                else if (t != typeof(object))
+                {
+                    throw new ArgumentException("Type must be Dictionary<object,object>, int, or string");
+                }
             }
         }
 
