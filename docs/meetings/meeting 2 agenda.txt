@@ -102,3 +102,7 @@ Meeting agenda for LOLCODE v1.1
     xv.  String operators (substring, concatenation, search, etc)
         - Part of the base language, or a standard library (if we have functions)?
         - Syntax?
+    xvi. Keyword for 'null'?
+    xvii.Is there a way to unset a value in an array? By setting it to null?
+    xiix.'else if' syntax?
+    xix. Switch statement?
