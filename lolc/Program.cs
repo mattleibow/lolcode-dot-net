@@ -11,17 +11,36 @@ namespace notdot.LOLCode.lolc
     {
         static int Main(string[] args)
         {
-            if (args.Length != 1)
+            LolCompilerArguments arguments = new LolCompilerArguments();
+
+            if (!CommandLine.Parser.ParseArgumentsWithUsage(args, arguments))
             {
-                Console.Error.WriteLine("Usage: lolc <filename>");
-                return 1;
+                return 2; 
             }
 
+            // Ensure some goodness in the arguments
+            if (!LolCompilerArguments.PostValidateArguments(arguments))
+            {
+                // Errors are output by PostValidateArguments to STDERR
+                return 3;
+            }
+
+            // Warn the user if there is more than one source file, as they will be ignored (for now) 
+            // TODO: Should be removed eventually
+            if (arguments.sources.Length > 1)
+            {
+                Console.Error.WriteLine("lolc warning: More than one source file specifed. Only '{0}' will be compiled.", arguments.sources[0]);
+            }
+
+            // Good to go
+            string outfileFile = String.IsNullOrEmpty(arguments.output) ? Path.ChangeExtension(arguments.sources[0], ".exe") : arguments.output;
             LOLCodeCodeProvider compiler = new LOLCodeCodeProvider();
             CompilerParameters cparam = new CompilerParameters();
             cparam.GenerateExecutable = true;
             cparam.GenerateInMemory = false;
-            cparam.OutputAssembly = Path.ChangeExtension(args[0], ".exe");
+            cparam.OutputAssembly = outfileFile;
+            cparam.IncludeDebugInformation = arguments.debug;
+            cparam.ReferencedAssemblies.AddRange(arguments.references); 
             CompilerResults results = compiler.CompileAssemblyFromFile(cparam, args[0]);
 
             for (int i = 0; i < results.Errors.Count; i++)
