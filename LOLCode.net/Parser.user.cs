@@ -29,7 +29,7 @@ namespace notdot.LOLCode
 
         private CodePragma GetPragma(Token tok)
         {
-            return new CodePragma(doc, tok.line, tok.col);
+            return new CodePragma(doc, filename, tok.line, tok.col);
         }
 
         private void SetEndPragma(CodeObject co)

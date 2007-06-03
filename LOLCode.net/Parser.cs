@@ -386,29 +386,29 @@ internal partial class Parser {
 	void ComparisonExpression(out Expression exp, Expression left) {
 		ArithmeticExpression(out exp, left);
 		while (StartOf(2)) {
-			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; 
+			ComparisonExpression ce = new ComparisonExpression(GetPragma(la)); ce.left = exp; exp = ce; 
 			if (la.kind == 40) {
 				Get();
-				ibs.negate = true; 
+				ce.op |= ComparisonOperator.Not; 
 			}
 			if (la.kind == 41) {
 				Get();
-				ibs.op = OpCodes.Cgt; 
+				ce.op |= ComparisonOperator.GreaterThan; 
 				if (la.kind == 42) {
 					Get();
 				}
 			} else if (la.kind == 43) {
 				Get();
-				ibs.op = OpCodes.Clt; 
+				ce.op |= ComparisonOperator.LessThan; 
 				if (la.kind == 42) {
 					Get();
 				}
 			} else if (la.kind == 44) {
 				Get();
-				ibs.op = OpCodes.Ceq; 
+				ce.op |= ComparisonOperator.Equal; 
 			} else SynErr(59);
-			Unary(out ibs.right);
-			ArithmeticExpression(out ibs.right, ibs.right);
+			Unary(out ce.right);
+			ArithmeticExpression(out ce.right, ce.right);
 		}
 		SetEndPragma(exp); 
 	}

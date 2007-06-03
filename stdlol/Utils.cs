@@ -30,6 +30,15 @@ namespace notdot.LOLCode.stdlol
             }
         }
 
+        public static int CompareObjects(object a, object b)
+        {
+            if (a is string && b is string)
+                return string.Compare(a as string, b as string);
+            if (a is int && b is int)
+                return ((int)a) - ((int)b);
+            throw new InvalidOperationException(string.Format("Cannot compare types {0} and {1}.", a.GetType().Name, b.GetType().Name));
+        }
+
         public static object GetObject(Dictionary<object, object> dict, object key)
         {
             object ret;

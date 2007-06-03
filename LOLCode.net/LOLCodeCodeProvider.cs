@@ -99,7 +99,9 @@ namespace notdot.LOLCode
             if(ret.Errors.Count > 0)
                 return ret;
 
-            MethodInfo entryMethod = prog.Emit(mb);
+            MethodInfo entryMethod = prog.Emit(ret.Errors, mb);
+            if (ret.Errors.Count > 0)
+                return ret;
 
             ab.SetEntryPoint(entryMethod);
 

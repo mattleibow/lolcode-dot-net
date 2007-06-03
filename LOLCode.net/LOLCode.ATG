@@ -172,13 +172,13 @@ OrExpression<out Expression exp, Expression left>
 
 ComparisonExpression<out Expression exp, Expression left>
 =
-	ArithmeticExpression<out exp, left> {			(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; .)
-	  [ "NOT"										(. ibs.negate = true; .)
-	  ] ( "BIGR"									(. ibs.op = OpCodes.Cgt; .)
-	  [ "THAN" ] | "SMALR"							(. ibs.op = OpCodes.Clt; .)
-	  [ "THAN" ] | "LIEK"							(. ibs.op = OpCodes.Ceq; .)
-	  ) Unary<out ibs.right> 
-	  ArithmeticExpression<out ibs.right, ibs.right> } (. SetEndPragma(exp); .)
+	ArithmeticExpression<out exp, left> {			(. ComparisonExpression ce = new ComparisonExpression(GetPragma(la)); ce.left = exp; exp = ce; .)
+	  [ "NOT"										(. ce.op |= ComparisonOperator.Not; .)
+	  ] ( "BIGR"									(. ce.op |= ComparisonOperator.GreaterThan; .)
+	  [ "THAN" ] | "SMALR"							(. ce.op |= ComparisonOperator.LessThan; .)
+	  [ "THAN" ] | "LIEK"							(. ce.op |= ComparisonOperator.Equal; .)
+	  ) Unary<out ce.right> 
+	  ArithmeticExpression<out ce.right, ce.right> } (. SetEndPragma(exp); .)
 .
 
 ArithmeticExpression<out Expression exp, Expression left>
