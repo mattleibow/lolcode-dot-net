@@ -5,20 +5,23 @@ using System.Diagnostics.SymbolStore;
 using notdot.LOLCode.stdlol;
 using System.Reflection;
 using System.IO;
+using System.CodeDom.Compiler;
 
 namespace notdot.LOLCode
 {
     internal class CodePragma
     {
         public ISymbolDocumentWriter doc;
+        public string filename;
         public int startLine;
         public int startColumn;
         public int endLine;
         public int endColumn;
 
-        public CodePragma(ISymbolDocumentWriter doc, int line, int column)
+        public CodePragma(ISymbolDocumentWriter doc, string filename, int line, int column)
         {
             this.doc = doc;
+            this.filename = filename;
             this.startLine = this.endLine = line;
             this.startColumn = this.endColumn = column;
         }
@@ -37,6 +40,8 @@ namespace notdot.LOLCode
         {
             this.location = loc;
         }
+
+        public abstract void Process(CompilerErrorCollection errors, ILGenerator gen);
     }
 
     internal class Program
@@ -46,11 +51,14 @@ namespace notdot.LOLCode
         public List<Label> startLabels = new List<Label>();
         public List<Label> endLabels = new List<Label>();
 
-        public MethodInfo Emit(ModuleBuilder mb)
+        public MethodInfo Emit(CompilerErrorCollection errors, ModuleBuilder mb)
         {
             TypeBuilder cls = mb.DefineType("Program");
             MethodBuilder main = cls.DefineMethod("Main", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new Type[] { });
             ILGenerator gen = main.GetILGenerator();
+
+            foreach (Statement stat in statements)
+                stat.Process(errors, gen);
 
             //locals.Add(new Dictionary<string, LocalBuilder>());
             BeginScope(gen);
@@ -193,6 +201,11 @@ namespace notdot.LOLCode
             gen.Emit(OpCodes.Stloc, local);
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            return;
+        }
+
         public VariableLValue(CodePragma loc) : base(loc) { }
         public VariableLValue(CodePragma loc, string name) : base(loc) { this.name = name; }
     }
@@ -241,6 +254,12 @@ namespace notdot.LOLCode
             gen.EmitCall(OpCodes.Callvirt, typeof(Dictionary<object, object>).GetProperty("Item", new Type[] { typeof(object) }).GetSetMethod(), null);
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            lval.Process(errors, gen);
+            index.Process(errors, gen);
+        }
+
         public ArrayIndexLValue(CodePragma loc) : base(loc) { }
     }
 
@@ -256,6 +275,11 @@ namespace notdot.LOLCode
         public override void Emit(Program prog, Type t, ILGenerator gen)
         {
             lval.EmitGet(prog, t, gen);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            lval.Process(errors, gen);
         }
 
         public LValueExpression(CodePragma loc) : base(loc) { }
@@ -276,6 +300,12 @@ namespace notdot.LOLCode
             lval.EndSet(prog, rval.EvaluationType, gen);
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            lval.Process(errors, gen);
+            rval.Process(errors, gen);
+        }
+
         public AssignmentStatement(CodePragma loc) : base(loc) { }
     }
 
@@ -286,6 +316,11 @@ namespace notdot.LOLCode
         public override void Emit(Program prog, ILGenerator gen)
         {
             prog.CreateLocal(name, gen);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            return;
         }
 
         public VariableDeclarationStatement(CodePragma loc) : base(loc) { }
@@ -320,6 +355,12 @@ namespace notdot.LOLCode
             prog.endLabels.RemoveAt(prog.endLabels.Count - 1);
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            foreach (Statement stat in statements)
+                stat.Process(errors, gen);
+        }
+
         public LoopStatement(CodePragma loc) : base(loc) { }
     }
 
@@ -337,6 +378,12 @@ namespace notdot.LOLCode
             amount.Emit(prog, typeof(int), gen);
             gen.Emit(op);
             lval.EndSet(prog, typeof(int), gen);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            lval.Process(errors, gen);
+            amount.Process(errors, gen);
         }
 
         public BinaryOpStatement(CodePragma loc) : base(loc) { }
@@ -371,6 +418,11 @@ namespace notdot.LOLCode
             }
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            return;
+        }
+
         public PrimitiveExpression(CodePragma loc) : base(loc) { }
         public PrimitiveExpression(CodePragma loc, int val) : base(loc) { value = val; }
         public PrimitiveExpression(CodePragma loc, string val) : base(loc) { value = val; }
@@ -381,33 +433,70 @@ namespace notdot.LOLCode
         public Expression condition;
         public List<Statement> trueStatements = new List<Statement>();
         public List<Statement> falseStatements = new List<Statement>();
+        public Label ifFalse;
+        public Label statementEnd;
 
         public override void Emit(Program prog, ILGenerator gen)
         {
-            Label ifFalse = gen.DefineLabel();
-            Label end = gen.DefineLabel();
-
             //Condition
             location.MarkSequencePoint(gen);
             condition.Emit(prog, typeof(int), gen);
-            gen.Emit(OpCodes.Brfalse, ifFalse);
+            if (!(condition is ComparisonExpression))
+                //If the condition is a comparisonexpression, it emits the branch instruction
+                gen.Emit(OpCodes.Brfalse, ifFalse);
 
             //True statements
             prog.BeginScope(gen);
             foreach (Statement stmt in trueStatements)
                 stmt.Emit(prog, gen);
-            gen.Emit(OpCodes.Br, end);
+            if(falseStatements.Count > 0)
+                gen.Emit(OpCodes.Br, statementEnd);
             prog.EndScope(gen);
 
             //False statements
-            prog.BeginScope(gen);
             gen.MarkLabel(ifFalse);
-            foreach (Statement stmt in falseStatements)
-                stmt.Emit(prog, gen);
-            prog.EndScope(gen);
+            if (falseStatements.Count > 0)
+            {
+                prog.BeginScope(gen);
+                foreach (Statement stmt in falseStatements)
+                    stmt.Emit(prog, gen);
+                prog.EndScope(gen);
+            }
 
             //End of conditional
-            gen.MarkLabel(end);
+            gen.MarkLabel(statementEnd);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            ifFalse = gen.DefineLabel();
+            statementEnd = gen.DefineLabel();
+
+            //If there are false statements but no true statements, invert the comparison and the branches
+            if (trueStatements.Count == 0)
+            {
+                List<Statement> temp = trueStatements;
+                trueStatements = falseStatements;
+                falseStatements = temp;
+
+                if (condition is ComparisonExpression)
+                {
+                    (condition as ComparisonExpression).op ^= ComparisonOperator.Not;
+                }
+                else
+                {
+                    condition = new NotExpression(condition.location, condition);
+                }
+            }
+
+            condition.Process(errors, gen);
+            foreach (Statement stat in trueStatements)
+                stat.Process(errors, gen);
+            foreach (Statement stat in falseStatements)
+                stat.Process(errors, gen);
+
+            if (condition is ComparisonExpression)
+                (condition as ComparisonExpression).ifFalse = ifFalse;
         }
 
         public ConditionalStatement(CodePragma loc) : base(loc) { }
@@ -435,6 +524,13 @@ namespace notdot.LOLCode
 
             code.Emit(prog, gen);
             gen.Emit(OpCodes.Ret);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            code.Process(errors, gen);
+            if (message != null)
+                message.Process(errors, gen);
         }
 
         public QuitStatement(CodePragma loc) : base(loc) { }
@@ -473,6 +569,11 @@ namespace notdot.LOLCode
             }
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            message.Process(errors, gen);
+        }
+
         public PrintStatement(CodePragma loc) : base(loc) { }
     }
 
@@ -497,7 +598,200 @@ namespace notdot.LOLCode
 	        get { return typeof(int); }
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            left.Process(errors, gen);
+            right.Process(errors, gen);
+        }
+
         public IntegerBinaryExpression(CodePragma loc) : base(loc) { }    
+    }
+
+    [Flags]
+    internal enum ComparisonOperator
+    {
+        None = 0,
+
+        Equal = 1,
+        LessThan = 2,
+        GreaterThan = 4,
+        Not = 8,
+
+        NotEqual = Equal | Not,
+        GreaterOrEqual = LessThan | Not,
+        LessOrEqual = GreaterThan | Not
+    }
+
+    internal class ComparisonExpression : Expression
+    {
+        public Expression left;
+        public Expression right;
+        public ComparisonOperator op;
+        public Label? ifFalse = null;
+        Type comparisonType;
+
+        public override Type EvaluationType
+        {
+            get { return typeof(int); }
+        }
+
+        public override void Emit(Program prog, Type t, ILGenerator gen)
+        {
+            left.Emit(prog, comparisonType, gen);
+            right.Emit(prog, comparisonType, gen);
+
+            if (comparisonType == typeof(object))
+            {
+                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("CompareObjects"), null);
+            }
+            else if (comparisonType == typeof(string))
+            {
+                gen.EmitCall(OpCodes.Call, typeof(string).GetMethod("Compare", null), null);
+            }
+
+            if(comparisonType == typeof(int)) {
+                if(ifFalse.HasValue) {
+                    //Branching instruction
+                    switch(op) {
+                        case ComparisonOperator.LessThan:
+                            gen.Emit(OpCodes.Bge, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.LessOrEqual:
+                            gen.Emit(OpCodes.Bgt, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.Equal:
+                            gen.Emit(OpCodes.Ceq);
+                            gen.Emit(OpCodes.Brfalse, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.NotEqual:
+                            gen.Emit(OpCodes.Beq, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.GreaterOrEqual:
+                            gen.Emit(OpCodes.Blt, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.GreaterThan:
+                            gen.Emit(OpCodes.Ble, ifFalse.Value);
+                            break;
+                    }
+                } else {
+                    //Comparison instruction
+                    switch(op) {
+                        case ComparisonOperator.LessThan:
+                        case ComparisonOperator.GreaterOrEqual:
+                            gen.Emit(OpCodes.Clt);
+                            break;
+                        case ComparisonOperator.Equal:
+                        case ComparisonOperator.NotEqual:
+                            gen.Emit(OpCodes.Ceq);
+                            break;
+                        case ComparisonOperator.GreaterThan:
+                        case ComparisonOperator.LessOrEqual:
+                            gen.Emit(OpCodes.Cgt);
+                            break;
+                    }
+
+                    if((op & ComparisonOperator.Not) != ComparisonOperator.None)
+                        gen.Emit(OpCodes.Not);
+                }
+            } else {
+                if(ifFalse.HasValue) {
+                    //Branching instruction
+                    switch(op) {
+                        case ComparisonOperator.LessThan:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Bge, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.LessOrEqual:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Bgt, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.Equal:
+                            gen.Emit(OpCodes.Brtrue, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.NotEqual:
+                            gen.Emit(OpCodes.Brfalse, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.GreaterOrEqual:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Blt, ifFalse.Value);
+                            break;
+                        case ComparisonOperator.GreaterThan:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Ble, ifFalse.Value);
+                            break;                        
+                    }
+                } else {
+                    //Comparison instruction
+                    switch(op) {
+                        case ComparisonOperator.LessThan:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Clt);
+                            break;
+                        case ComparisonOperator.GreaterOrEqual:
+                            gen.Emit(OpCodes.Ldc_I4, -1);
+                            gen.Emit(OpCodes.Cgt);
+                            break;
+                        case ComparisonOperator.Equal:
+                            gen.Emit(OpCodes.Not);
+                            break;
+                        case ComparisonOperator.NotEqual:
+                            break;
+                        case ComparisonOperator.GreaterThan:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Cgt);
+                            break;
+                        case ComparisonOperator.LessOrEqual:
+                            gen.Emit(OpCodes.Ldc_I4_1);
+                            gen.Emit(OpCodes.Clt);
+                            break;
+                    }
+                }
+            }
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            left.Process(errors, gen);
+            right.Process(errors, gen);
+
+            if (left.EvaluationType == right.EvaluationType)
+            {
+                comparisonType = left.EvaluationType;
+            }
+            else if (left.EvaluationType == typeof(object) || right.EvaluationType == typeof(object))
+            {
+                comparisonType = typeof(object);
+            }
+            else
+            {
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Cannot compare dissimilar types"));
+            }
+        }
+
+        public ComparisonExpression(CodePragma loc) : base(loc) { }
+    }
+
+    internal class NotExpression : Expression
+    {
+        public Expression exp;
+
+        public override Type EvaluationType
+        {
+            get { return typeof(int); }
+        }
+
+        public override void Emit(Program prog, Type t, ILGenerator gen)
+        {
+            gen.Emit(OpCodes.Not);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            if (exp.EvaluationType != typeof(int))
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Cannot negate a non-integer expression"));
+        }
+
+        public NotExpression(CodePragma loc, Expression e) : base(loc) { exp = e; }
     }
 
     internal enum IOAmount
@@ -537,6 +831,11 @@ namespace notdot.LOLCode
             dest.EndSet(prog, typeof(string), gen);
         }
 
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            dest.Process(errors, gen);
+        }
+
         public InputStatement(CodePragma loc) : base(loc) { }
     }
 
@@ -547,6 +846,11 @@ namespace notdot.LOLCode
             location.MarkSequencePoint(gen);
 
             gen.Emit(OpCodes.Br, prog.endLabels[prog.endLabels.Count - 1]);
+        }
+
+        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        {
+            return;
         }
 
         public BreakStatement(CodePragma loc) : base(loc) { }
