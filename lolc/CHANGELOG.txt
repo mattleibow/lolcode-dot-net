@@ -1,0 +1,17 @@
+Revision 18
+-----------
+- Assorted optimisations to the generated IL
+- Command line support for lolc added - still preliminary, some options will not have any
+  effect. Note that builds default to release now, to make a debug build, you will have to
+  specify /debug+.
+- Fixed printing of arrays using VISIBLE so it adheres to the standard.
+- Improved compiler error reporting substantially.
+- Added README and CHANGELOG to the package.
+
+Revision 8
+----------
+- Fixed string comparison code
+
+Revision 1
+----------
+- Initial public release
