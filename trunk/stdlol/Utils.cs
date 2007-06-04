@@ -106,8 +106,9 @@ namespace notdot.LOLCode.stdlol
                 return "";
             if (obj is Dictionary<object, object>)
                 return ToString(GetObject(obj as Dictionary<object,object>, 0));
-            if (obj is int)
-                return ((int)obj).ToString();
+            //Removed for now in favor of making VISIBLE recognise expression type
+            //if (obj is int)
+            //    return ((int)obj).ToString();
 
             throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to string", obj.GetType().Name));
         }
@@ -122,6 +123,30 @@ namespace notdot.LOLCode.stdlol
                 return ToInt(GetObject(obj as Dictionary<object, object>, 0));
 
             throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to int", obj.GetType().Name));
+        }
+
+        public static void PrintObject(TextWriter writer, object obj, bool newline)
+        {
+            string pattern;
+            if (newline)
+            {
+                pattern = "{0}\n";
+            }
+            else
+            {
+                pattern = "{0}";
+            }
+
+            if (obj.GetType() != typeof(Dictionary<object, object>))
+            {
+                writer.Write(pattern, obj);
+            }
+            else
+            {
+                Dictionary<object, object> dict = obj as Dictionary<object, object>;
+                foreach (object o2 in dict.Values)
+                    writer.Write(pattern, o2);
+            }
         }
     }
 }

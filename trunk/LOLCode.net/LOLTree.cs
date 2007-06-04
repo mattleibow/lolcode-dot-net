@@ -559,17 +559,19 @@ namespace notdot.LOLCode
             }
 
             //Get the message
-            message.Emit(prog, typeof(string), gen);
+            message.Emit(prog, typeof(object), gen);
 
-            //Write the message
+            //Indicate if it requires a newline or not
             if (newline)
             {
-                gen.EmitCall(OpCodes.Callvirt, typeof(TextWriter).GetMethod("WriteLine", new Type[] { typeof(string) }), null);
+                gen.Emit(OpCodes.Ldc_I4_1);
             }
             else
             {
-                gen.EmitCall(OpCodes.Callvirt, typeof(TextWriter).GetMethod("Write", new Type[] { typeof(string) }), null);
+                gen.Emit(OpCodes.Ldc_I4_0);
             }
+
+            gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("PrintObject"), null);
         }
 
         public override void Process(CompilerErrorCollection errors, ILGenerator gen)
