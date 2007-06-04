@@ -60,4 +60,13 @@
   <Target Name="AfterBuild">
   </Target>
   -->
+  <PropertyGroup>
+    <PostBuildEvent>mkdir package
+copy lolc.exe package
+copy stdlol.dll package
+copy lolcode.net.dll package
+copy fulltest.lol package
+copy "$(ProjectDir)CHANGELOG.txt" package
+copy "$(ProjectDir)README.txt" package</PostBuildEvent>
+  </PropertyGroup>
 </Project>
