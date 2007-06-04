@@ -41,7 +41,7 @@ namespace notdot.LOLCode.lolc
             cparam.OutputAssembly = outfileFile;
             cparam.IncludeDebugInformation = arguments.debug;
             cparam.ReferencedAssemblies.AddRange(arguments.references); 
-            CompilerResults results = compiler.CompileAssemblyFromFile(cparam, args[0]);
+            CompilerResults results = compiler.CompileAssemblyFromFile(cparam, arguments.sources[0]);
 
             for (int i = 0; i < results.Errors.Count; i++)
                 Console.Error.WriteLine(results.Errors[i].ToString());
