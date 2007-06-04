@@ -42,6 +42,10 @@ namespace notdot.LOLCode
 
         private void SetEndPragma(CodeObject co)
         {
+            if (co == null)
+                //We encountered an error - we can ignore this, since it will result in a compiler error
+                return;
+
             co.location.endLine = t.line;
             co.location.endColumn = t.col + t.val.Length;
         }
