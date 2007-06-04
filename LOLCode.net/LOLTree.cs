@@ -394,6 +394,11 @@ namespace notdot.LOLCode
         {
             lval.Process(errors, gen);
             amount.Process(errors, gen);
+
+            if (amount.EvaluationType != typeof(int) && amount.EvaluationType != typeof(object))
+            {
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Expression is not valid on operand of type {0}", amount.EvaluationType.Name)));
+            }
         }
 
         public BinaryOpStatement(CodePragma loc) : base(loc) { }
@@ -430,6 +435,10 @@ namespace notdot.LOLCode
 
         public override void Process(CompilerErrorCollection errors, ILGenerator gen)
         {
+            if(value.GetType() != typeof(int) && value.GetType() != typeof(string))
+                //We throw an exception here because this would indicate an issue with the compiler, not with the code being compiled.
+                throw new InvalidOperationException("PrimitiveExpression values must be int or string.");
+
             return;
         }
 
@@ -450,7 +459,8 @@ namespace notdot.LOLCode
         {
             //Condition
             location.MarkSequencePoint(gen);
-            condition.Emit(prog, typeof(int), gen);
+            condition.Emit(prog, condition.EvaluationType, gen);
+
             if (!(condition is ComparisonExpression))
                 //If the condition is a comparisonexpression, it emits the branch instruction
                 gen.Emit(OpCodes.Brfalse, ifFalse);
@@ -541,6 +551,11 @@ namespace notdot.LOLCode
             code.Process(errors, gen);
             if (message != null)
                 message.Process(errors, gen);
+
+            if(code.EvaluationType != typeof(int) && code.EvaluationType != typeof(object))
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "First argument to BYES or DIAF must be an integer"));
+            if(message != null && message.EvaluationType != typeof(string) && message.EvaluationType != typeof(object))
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Second argument to BYES or DIAF must be a string"));
         }
 
         public QuitStatement(CodePragma loc) : base(loc) { }
@@ -614,6 +629,9 @@ namespace notdot.LOLCode
         {
             left.Process(errors, gen);
             right.Process(errors, gen);
+
+            if ((left.EvaluationType != typeof(int) && left.EvaluationType != typeof(object)) || (right.EvaluationType != typeof(int) && right.EvaluationType != typeof(object)))
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Expression is not valid on operands of type {0} and {1}.", left.EvaluationType.Name, right.EvaluationType.Name)));
         }
 
         public IntegerBinaryExpression(CodePragma loc) : base(loc) { }    
