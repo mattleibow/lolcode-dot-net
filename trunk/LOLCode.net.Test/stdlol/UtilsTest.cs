@@ -96,7 +96,9 @@ namespace LOLCode.net.Tests.stdlol
         #endregion
 
         #region "ToString Tests"
-
+        //Note: Stubbed out because automatic casting of ints to strings has been
+        //disabled in favor of a more versatile VISIBLE statement, for now.
+        /*
         [Test]
         public void ToStringInt()
         {
@@ -106,6 +108,7 @@ namespace LOLCode.net.Tests.stdlol
             Assert.AreEqual(value.ToString(), Utils.ToString(value as object));
             Assert.AreNotEqual("7331", Utils.ToString(value));
         }
+        */
 
         [Test]
         public void ToStringString()
