@@ -130,7 +130,7 @@ namespace notdot.LOLCode.stdlol
             string pattern;
             if (newline)
             {
-                pattern = "{0}\n";
+                pattern = "{0}" + Environment.NewLine;
             }
             else
             {
