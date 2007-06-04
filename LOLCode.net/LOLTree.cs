@@ -50,6 +50,12 @@ namespace notdot.LOLCode
         private List<Dictionary<string, LocalBuilder>> locals = new List<Dictionary<string, LocalBuilder>>();
         public List<Label> startLabels = new List<Label>();
         public List<Label> endLabels = new List<Label>();
+        public CompilerParameters compileropts;
+
+        public Program(CompilerParameters opts)
+        {
+            this.compileropts = opts;
+        }
 
         public MethodInfo Emit(CompilerErrorCollection errors, ModuleBuilder mb)
         {
@@ -90,7 +96,8 @@ namespace notdot.LOLCode
         public LocalBuilder CreateLocal(string name, ILGenerator gen)
         {
             LocalBuilder ret = gen.DeclareLocal(typeof(object));
-            ret.SetLocalSymInfo(name);
+            if(compileropts.IncludeDebugInformation)
+                ret.SetLocalSymInfo(name);
             locals[locals.Count - 1].Add(name, ret);
 
             return ret;

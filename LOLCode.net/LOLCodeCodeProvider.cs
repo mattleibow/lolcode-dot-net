@@ -78,17 +78,20 @@ namespace notdot.LOLCode
             name.Name = options.OutputAssembly;
 
             AssemblyBuilder ab = Thread.GetDomain().DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave);
-            
-            ConstructorInfo daCtor = typeof(DebuggableAttribute).GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) });
-            CustomAttributeBuilder daBuilder = new CustomAttributeBuilder(daCtor, new object[] { DebuggableAttribute.DebuggingModes.Default | DebuggableAttribute.DebuggingModes.DisableOptimizations });
-            ab.SetCustomAttribute(daBuilder);
 
-            ModuleBuilder mb = ab.DefineDynamicModule(Path.GetFileName(options.OutputAssembly), true);
+            if (options.IncludeDebugInformation)
+            {
+                ConstructorInfo daCtor = typeof(DebuggableAttribute).GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) });
+                CustomAttributeBuilder daBuilder = new CustomAttributeBuilder(daCtor, new object[] { DebuggableAttribute.DebuggingModes.Default | DebuggableAttribute.DebuggingModes.DisableOptimizations });
+                ab.SetCustomAttribute(daBuilder);
+            }
+
+            ModuleBuilder mb = ab.DefineDynamicModule(Path.GetFileName(options.OutputAssembly), options.IncludeDebugInformation);
 
             CompilerResults ret = new CompilerResults(options.TempFiles);
             Errors err = new Errors(ret.Errors);
 
-            Program prog = new Program();
+            Program prog = new Program(options);
             for (int i = 0; i < streams.Length; i++)
             {
                 Parser p = Parser.GetParser(mb, prog, filenames[i], streams[i]);

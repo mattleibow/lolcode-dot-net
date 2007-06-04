@@ -12,7 +12,15 @@ namespace notdot.LOLCode
         public static Parser GetParser(ModuleBuilder mb, Program prog, string filename, Stream s) {
             Parser p = new Parser(new Scanner(s));
             p.filename = Path.GetFileName(filename);
-            p.doc = mb.DefineDocument(p.filename, Guid.Empty, Guid.Empty, Guid.Empty);
+            if (prog.compileropts.IncludeDebugInformation)
+            {
+                p.doc = mb.DefineDocument(p.filename, Guid.Empty, Guid.Empty, Guid.Empty);
+            }
+            else
+            {
+                //Not a debug build
+                p.doc = null;
+            }
             p.program = prog;
 
             return p;
