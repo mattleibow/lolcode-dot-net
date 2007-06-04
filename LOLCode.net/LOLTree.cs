@@ -676,7 +676,7 @@ namespace notdot.LOLCode
             }
             else if (comparisonType == typeof(string))
             {
-                gen.EmitCall(OpCodes.Call, typeof(string).GetMethod("Compare", null), null);
+                gen.EmitCall(OpCodes.Call, typeof(string).GetMethod("Compare", BindingFlags.Public | BindingFlags.Static, null, new Type[] { typeof(string), typeof(string) }, null), null);
             }
 
             if(comparisonType == typeof(int)) {
@@ -762,9 +762,13 @@ namespace notdot.LOLCode
                             gen.Emit(OpCodes.Cgt);
                             break;
                         case ComparisonOperator.Equal:
-                            gen.Emit(OpCodes.Not);
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Ceq);
                             break;
                         case ComparisonOperator.NotEqual:
+                            gen.Emit(OpCodes.Ldc_I4_0);
+                            gen.Emit(OpCodes.Ceq);
+                            gen.Emit(OpCodes.Not);
                             break;
                         case ComparisonOperator.GreaterThan:
                             gen.Emit(OpCodes.Ldc_I4_0);
@@ -788,9 +792,13 @@ namespace notdot.LOLCode
             {
                 comparisonType = left.EvaluationType;
             }
-            else if (left.EvaluationType == typeof(object) || right.EvaluationType == typeof(object))
+            else if (left.EvaluationType == typeof(object))
             {
-                comparisonType = typeof(object);
+                comparisonType = right.EvaluationType;
+            } 
+            else if(right.EvaluationType == typeof(object)) 
+            {
+                comparisonType = right.EvaluationType;
             }
             else
             {
