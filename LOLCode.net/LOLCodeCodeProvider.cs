@@ -75,7 +75,7 @@ namespace notdot.LOLCode
         private CompilerResults CompileAssemblyFromStreamBatch(CompilerParameters options, string[] filenames, Stream[] streams)
         {
             AssemblyName name = new AssemblyName();
-            name.Name = options.OutputAssembly;
+            name.Name = Path.GetFileName(options.OutputAssembly);
 
             AssemblyBuilder ab = Thread.GetDomain().DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave);
 
