@@ -758,7 +758,7 @@ namespace notdot.LOLCode
                             gen.Emit(OpCodes.Clt);
                             break;
                         case ComparisonOperator.GreaterOrEqual:
-                            gen.Emit(OpCodes.Ldc_I4, -1);
+                            gen.Emit(OpCodes.Ldc_I4_M1);
                             gen.Emit(OpCodes.Cgt);
                             break;
                         case ComparisonOperator.Equal:
