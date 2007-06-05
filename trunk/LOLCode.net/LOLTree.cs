@@ -612,12 +612,15 @@ namespace notdot.LOLCode
 
         public override void Emit(Program prog, Type t, ILGenerator gen)
         {
-            if(typeof(int) != t)
+            if(typeof(int) != t && typeof(object) != t)
                 throw new ArgumentException("IntegerBinaryExpressions can only evaluate to type int");
 
-            left.Emit(prog, t, gen);
-            right.Emit(prog, t, gen);
+            left.Emit(prog, typeof(int), gen);
+            right.Emit(prog, typeof(int), gen);
             gen.Emit(op);
+
+            if (typeof(object) == t)
+                gen.Emit(OpCodes.Box, typeof(int));
         }
 
         public override Type EvaluationType
