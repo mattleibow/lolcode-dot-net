@@ -5,23 +5,23 @@ HAI
 	VISIBLE "Is it can be Caturday? Entah YES/NO:"
 	GIMMEH ANSWER
 
-IM IN YR LOOP
-	IZ ANSWER LIEK "YES"?
+	IM IN YR LOOP
+		IZ ANSWER LIEK "YES"?
 		YARLY
 			VISIBLE "Hooray! It's Caturday!"
-		GTFO
+			GTFO
 			
 		NOWAI
-		
+			
 			IZ ANSWER LIEK "NO"?
-				YARLY
-					VISIBLE "Nuuu! It are nut Caturday yet :("
-					GTFO
-				NOWAI
-					VISIBLE "Pls entah eifa YES or NO. Cays sensatif"
-					GIMMEH ANSWER
+			YARLY
+				VISIBLE "Nuuu! It are nut Caturday yet :("
+				GTFO
+			NOWAI
+				VISIBLE "Pls entah eifa YES or NO. Cays sensatif"
+				GIMMEH ANSWER
 			KTHX
+		KTHX
 	KTHX
-KTHX
 KTHXBYE
 
