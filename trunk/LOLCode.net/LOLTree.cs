@@ -59,7 +59,7 @@ namespace notdot.LOLCode
 
         public MethodInfo Emit(CompilerErrorCollection errors, ModuleBuilder mb)
         {
-            TypeBuilder cls = mb.DefineType("Program");
+            TypeBuilder cls = mb.DefineType(compileropts.MainClass);
             MethodBuilder main = cls.DefineMethod("Main", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new Type[] { });
             ILGenerator gen = main.GetILGenerator();
 

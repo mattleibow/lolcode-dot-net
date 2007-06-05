@@ -39,6 +39,7 @@ namespace notdot.LOLCode.lolc
             cparam.GenerateExecutable = true;
             cparam.GenerateInMemory = false;
             cparam.OutputAssembly = outfileFile;
+            cparam.MainClass = "Program";
             cparam.IncludeDebugInformation = arguments.debug;
             cparam.ReferencedAssemblies.AddRange(arguments.references); 
             CompilerResults results = compiler.CompileAssemblyFromFile(cparam, arguments.sources[0]);
