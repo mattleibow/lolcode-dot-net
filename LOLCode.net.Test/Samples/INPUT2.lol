@@ -6,11 +6,12 @@ HAI
 	GIMMEH ANSWER
 
 	IZ ANSWER LIEK "YES"?
-		YARLY
-			VISIBLE "Hooray! its Caturday!"
+	YARLY
+		VISIBLE "Hooray! its Caturday!"
 			
-		NOWAI
-			VISIBLE "Still nut Caturday :("
+	NOWAI
+		VISIBLE "Still nut Caturday :("
 	KTHX
+	
 KTHXBYE
 
