@@ -1,24 +1,23 @@
 -->begin code
 HAI 
-	BTW Strings
+	BTW VISIBLE can be used to print strings
 	VISIBLE "HELLO"
 	VISIBLE "WORLD"
+
+    BTW Putting an '!' at the end stops it from printing a newline at the end
 	VISIBLE "HELLO "!
 	VISIBLE "WORLD"
-	VISIBLE "WAR "!
-	VISIBLE "AND "!
-	VISIBLE "PEACE "
 	
-	BTW Ints
+	BTW VISIBLE can also be used to print ints
 	VISIBLE 123
 	VISIBLE 1!
 	VISIBLE 2!
 	VISIBLE 3
 	
-	BTW Values
 	I HAS A VAR3. LOL VAR3 R 10
 	I HAS A VAR4. LOL VAR4 R 20
 	
+    BTW VISIBLE can also be used to print variables
 	VISIBLE VAR3
 	VISIBLE VAR4
 	VISIBLE VAR3!
@@ -32,12 +31,13 @@ HAI
 	VISIBLE VAR!
 	VISIBLE VAR2
 	
+    BTW VISIBLE can also be used to print expressions
+    VISIBLE VAR3 UP VAR4 OVAR 2
 KTHXBYE
 -->begin baseline
 HELLO
 WORLD
 HELLO WORLD
-WAR AND PEACE 
 123
 123
 10
@@ -46,3 +46,4 @@ WAR AND PEACE
 KITTEH
 STEALIN'
 KITTEHSTEALIN'
+20

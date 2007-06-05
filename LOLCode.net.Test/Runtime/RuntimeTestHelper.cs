@@ -72,6 +72,7 @@ namespace LOLCode.net.Tests.Runtime
             cparam.GenerateExecutable = true;
             cparam.GenerateInMemory = (method == ExecuteMethod.InMemory) ? true : false;
             cparam.OutputAssembly = outfile;
+            cparam.MainClass = "Program";
             cparam.IncludeDebugInformation = true;
             return cparam;
         }
