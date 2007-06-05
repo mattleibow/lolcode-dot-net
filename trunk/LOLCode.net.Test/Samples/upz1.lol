@@ -3,6 +3,7 @@ HAI
 	BTW Simple example showing how UPZ works
 
 	I HAS A VAR
+    LOL VAR R 0
 	
 	IM IN YR LOOP
 		UPZ VAR!!1
