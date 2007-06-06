@@ -346,7 +346,7 @@ internal partial class Parser {
 			SetEndPragma(exp); 
 		} else if (la.kind == 4) {
 			Get();
-			exp = new PrimitiveExpression(GetPragma(t), t.val.Substring(1, t.val.Length - 2)); SetEndPragma(exp); 
+			exp = new PrimitiveExpression(GetPragma(t), UnescapeString(t.val)); SetEndPragma(exp); 
 		} else SynErr(58);
 	}
 

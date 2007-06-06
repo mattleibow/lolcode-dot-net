@@ -15,6 +15,7 @@ CHARACTERS
 	partLetter			= '0' .. '9' + 'A' .. 'Z' + '_'.
 	
 	digit				= "0123456789".
+	hexDigit			= digit + "ABCDEFabcdef".	
 	notDigit			= ANY - digit.
 	
 	char				= ANY - "'" - '\\' - newLine.
@@ -31,7 +32,13 @@ TOKENS
 						    [("e" | "E" ) ["+" | "-"] digit {digit} ] 
 						    | ("e" | "E") ["+" | "-"] digit {digit}
 						  ).
-	stringCon			= "\"" { regularStringChar } "\"".
+	stringCon			= "\""  { regularStringChar
+							| "\\\'" | "\\\"" | "\\\\" | "\\0" | "\\a" | "\\b" | "\\f" | "\\n" | "\\r"
+							| "\\t" | "\\v"
+							| "\\x" hexDigit [hexDigit] [hexDigit] [hexDigit]
+							| "\\u" hexDigit hexDigit hexDigit hexDigit
+							| "\\U" hexDigit hexDigit hexDigit hexDigit hexDigit hexDigit hexDigit hexDigit
+							} "\"".
 	eos					= eol | ".".
 	
 	in					= "IN".
@@ -203,7 +210,7 @@ Unary<out Expression exp>							(. exp = null; .)
 	IF(la.kind == _intCon && !IsArrayIndex()) intCon (. exp = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(exp); .)
 	|												(. LValueExpression lve = new LValueExpression(GetPragma(la)); exp = lve; .)
 	LValue<out lve.lval>							(. SetEndPragma(exp); .)
-	| stringCon										(. exp = new PrimitiveExpression(GetPragma(t), t.val.Substring(1, t.val.Length - 2)); SetEndPragma(exp); .)
+	| stringCon										(. exp = new PrimitiveExpression(GetPragma(t), UnescapeString(t.val)); SetEndPragma(exp); .)
 .
 
 LValue<out LValue lv>								(. lv = null; .)
