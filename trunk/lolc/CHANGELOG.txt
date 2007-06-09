@@ -1,3 +1,8 @@
+Revision 31
+-----------
+- Fixed a bug causing syntax errors on "CAN HAS"
+- Fixed a bug where a file containing any warnings would not compile.
+
 Revision 30
 -----------
 - Made LOLCode IRCSPECZ compliant - see http://forum.lolcode.com/viewtopic.php?id=108

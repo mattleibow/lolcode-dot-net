@@ -99,11 +99,11 @@ namespace notdot.LOLCode
                 p.Parse();
             }
 
-            if(ret.Errors.Count > 0)
+            if(ret.Errors.HasErrors)
                 return ret;
 
             MethodInfo entryMethod = prog.Emit(ret.Errors, mb);
-            if (ret.Errors.Count > 0)
+            if (ret.Errors.HasErrors)
                 return ret;
 
             ab.SetEntryPoint(entryMethod);

@@ -15,9 +15,10 @@ internal partial class Parser {
 	const int _realCon = 3;
 	const int _stringCon = 4;
 	const int _eos = 5;
-	const int _in = 6;
-	const int _im = 7;
-	const int _outta = 8;
+	const int _can = 6;
+	const int _in = 7;
+	const int _im = 8;
+	const int _outta = 9;
 	const int maxT = 62;
 	const int _comment = 63;
 
@@ -92,13 +93,13 @@ internal partial class Parser {
 	}
 	
 	void LOLCode() {
-		Expect(9);
-		if (la.kind == 10) {
+		Expect(10);
+		if (la.kind == 11) {
 			Get();
-			if (la.kind == 11) {
+			if (la.kind == 12) {
 				Get();
 				program.version = LOLCodeVersion.v1_0; 
-			} else if (la.kind == 12) {
+			} else if (la.kind == 13) {
 				Get();
 				program.version = LOLCodeVersion.IRCSPECZ; 
 			} else SynErr(63);
@@ -107,7 +108,7 @@ internal partial class Parser {
 			Get();
 		}
 		Statements(out program.methods["Main"].statements);
-		Expect(13);
+		Expect(14);
 		while (la.kind == 5) {
 			Get();
 		}
@@ -116,8 +117,8 @@ internal partial class Parser {
 	void Statements(out Statement stat) {
 		BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; 
 		Statement s; 
-		while (StartOf(1) && scanner.Peek().kind != _outta) {
-			if (la.kind == 14) {
+		while ((StartOf(1) || la.kind == _can) && scanner.Peek().kind != _outta) {
+			if (la.kind == 6) {
 				CanHasStatement();
 			} else if (StartOf(1)) {
 				Statement(out s);
@@ -130,7 +131,7 @@ internal partial class Parser {
 	}
 
 	void CanHasStatement() {
-		Expect(14);
+		Expect(6);
 		Expect(15);
 		if (la.kind == 4) {
 			Get();
@@ -151,7 +152,7 @@ internal partial class Parser {
 			IHasAStatement(out stat);
 			break;
 		}
-		case 7: {
+		case 8: {
 			LoopStatement(out stat);
 			break;
 		}
@@ -220,8 +221,8 @@ internal partial class Parser {
 
 	void LoopStatement(out Statement stat) {
 		LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; 
+		Expect(8);
 		Expect(7);
-		Expect(6);
 		if (la.kind == 24) {
 			Get();
 		} else if (la.kind == 25) {
@@ -236,9 +237,9 @@ internal partial class Parser {
 		if (la.kind == 29) {
 			Get();
 			Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); 
-		} else if (la.kind == 7) {
+		} else if (la.kind == 8) {
 			Get();
-			Expect(8);
+			Expect(9);
 			if (la.kind == 24) {
 				Get();
 			} else if (la.kind == 25) {
@@ -587,7 +588,7 @@ internal partial class Parser {
 			Get();
 			alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); 
 		} else SynErr(81);
-		Expect(6);
+		Expect(7);
 		Expect(61);
 		LValue(out alv.lval);
 		SetEndPragma(alv); 
@@ -606,7 +607,7 @@ internal partial class Parser {
 	
 	bool[,] set = {
 		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
-		{x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,T,x,x, x,T,T,x, x,x,T,T, x,x,T,T, T,T,x,T, x,x,x,T, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
+		{x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,T,T,x, x,x,T,T, x,x,T,T, T,T,x,T, x,x,x,T, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
 		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,T, T,x,x,x, x,x,x,x}
 
 	};
@@ -631,15 +632,15 @@ public class Errors {
 			case 3: s = "realCon expected"; break;
 			case 4: s = "stringCon expected"; break;
 			case 5: s = "eos expected"; break;
-			case 6: s = "in expected"; break;
-			case 7: s = "im expected"; break;
-			case 8: s = "outta expected"; break;
-			case 9: s = "\"hai\" expected"; break;
-			case 10: s = "\"to\" expected"; break;
-			case 11: s = "\"1.0\" expected"; break;
-			case 12: s = "\"ircspecz\" expected"; break;
-			case 13: s = "\"kthxbye\" expected"; break;
-			case 14: s = "\"can\" expected"; break;
+			case 6: s = "can expected"; break;
+			case 7: s = "in expected"; break;
+			case 8: s = "im expected"; break;
+			case 9: s = "outta expected"; break;
+			case 10: s = "\"hai\" expected"; break;
+			case 11: s = "\"to\" expected"; break;
+			case 12: s = "\"1.0\" expected"; break;
+			case 13: s = "\"ircspecz\" expected"; break;
+			case 14: s = "\"kthxbye\" expected"; break;
 			case 15: s = "\"has\" expected"; break;
 			case 16: s = "\"?\" expected"; break;
 			case 17: s = "\"gimmeh\" expected"; break;

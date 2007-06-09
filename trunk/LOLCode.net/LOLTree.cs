@@ -464,7 +464,8 @@ namespace notdot.LOLCode
 
             condition.Process(lm, errors, gen);
             trueStatements.Process(lm, errors, gen);
-            falseStatements.Process(lm, errors, gen);
+            if(falseStatements != null)
+                falseStatements.Process(lm, errors, gen);
 
             if (condition is ComparisonExpression)
                 (condition as ComparisonExpression).ifFalse = ifFalse;
