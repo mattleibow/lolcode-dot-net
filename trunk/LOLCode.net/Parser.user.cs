@@ -9,7 +9,7 @@ namespace notdot.LOLCode
 {
     internal partial class Parser
     {
-        public static Parser GetParser(ModuleBuilder mb, Program prog, string filename, Stream s) {
+        public static Parser GetParser(ModuleBuilder mb, LOLProgram prog, string filename, Stream s) {
             Parser p = new Parser(new Scanner(s));
             p.filename = Path.GetFileName(filename);
             if (prog.compileropts.IncludeDebugInformation)
@@ -28,7 +28,7 @@ namespace notdot.LOLCode
 
         private string filename;
         private ISymbolDocumentWriter doc;
-        private Program program;
+        private LOLProgram program;
 
         private bool IsArrayIndex()
         {
@@ -53,6 +53,12 @@ namespace notdot.LOLCode
         void Error(string s)
         {
             if (errDist >= minErrDist) errors.SemErr(filename, t.line, t.col, s);
+            errDist = 0;
+        }
+
+        void Warning(string s)
+        {
+            if(errDist >= minErrDist) errors.Warning(filename, t.line, t.col, s);
             errDist = 0;
         }
 
@@ -179,5 +185,11 @@ namespace notdot.LOLCode
 
             return ret.ToString();
         }
+
+        private void AddCase(SwitchStatement ss, object label, Statement block)
+        {
+            ss.cases.Add(new SwitchStatement.Case(label, block));
+        }
     }
+
 }

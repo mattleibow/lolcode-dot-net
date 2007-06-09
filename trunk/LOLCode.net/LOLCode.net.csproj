@@ -41,6 +41,7 @@
     <Compile Include="LOLTree.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="Parser.user.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Scanner.cs" />
   </ItemGroup>

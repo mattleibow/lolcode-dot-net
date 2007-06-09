@@ -91,7 +91,7 @@ namespace notdot.LOLCode
             CompilerResults ret = new CompilerResults(options.TempFiles);
             Errors err = new Errors(ret.Errors);
 
-            Program prog = new Program(options);
+            LOLProgram prog = new LOLProgram(options);
             for (int i = 0; i < streams.Length; i++)
             {
                 Parser p = Parser.GetParser(mb, prog, filenames[i], streams[i]);
