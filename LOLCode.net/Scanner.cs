@@ -241,15 +241,15 @@ internal class Scanner {
 
 	void CheckLiteral() {
 		switch (t.val.ToLower()) {
-			case "in": t.kind = 6; break;
-			case "im": t.kind = 7; break;
-			case "outta": t.kind = 8; break;
-			case "hai": t.kind = 9; break;
-			case "to": t.kind = 10; break;
-			case "1.0": t.kind = 11; break;
-			case "ircspecz": t.kind = 12; break;
-			case "kthxbye": t.kind = 13; break;
-			case "can": t.kind = 14; break;
+			case "can": t.kind = 6; break;
+			case "in": t.kind = 7; break;
+			case "im": t.kind = 8; break;
+			case "outta": t.kind = 9; break;
+			case "hai": t.kind = 10; break;
+			case "to": t.kind = 11; break;
+			case "1.0": t.kind = 12; break;
+			case "ircspecz": t.kind = 13; break;
+			case "kthxbye": t.kind = 14; break;
 			case "has": t.kind = 15; break;
 			case "gimmeh": t.kind = 17; break;
 			case "line": t.kind = 18; break;

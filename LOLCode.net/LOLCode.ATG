@@ -41,6 +41,7 @@ TOKENS
 							} "\"".
 	eos					= eol | ".".
 	
+	can					= "CAN".
 	in					= "IN".
 	im					= "IM".
 	outta				= "OUTTA".
@@ -62,7 +63,7 @@ LOLCode
 
 Statements<.out Statement stat.>					(. BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; .)
 =													(. Statement s; .)
-	{ IF(StartOf(1) && scanner.Peek().kind != _outta) 
+	{ IF((StartOf(1) || la.kind == _can) && scanner.Peek().kind != _outta) 
 	( CanHasStatement | Statement<out s>			(. bs.statements.Add(s); .)
 	  ) { eos } }
 .
