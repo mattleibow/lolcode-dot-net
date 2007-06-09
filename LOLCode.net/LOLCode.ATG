@@ -42,6 +42,8 @@ TOKENS
 	eos					= eol | ".".
 	
 	in					= "IN".
+	im					= "IM".
+	outta				= "OUTTA".
 
 PRAGMAS
 	comment				= "BTW" { noteol } eol.
@@ -51,14 +53,17 @@ IGNORE tab + cr
 PRODUCTIONS
 LOLCode
 =
-	"HAI" { eos }
-	Statements<program.statements>
+	"HAI" [ "TO" ("1.0"								(. program.version = LOLCodeVersion.v1_0; .)
+	| "IRCSPECZ"									(. program.version = LOLCodeVersion.IRCSPECZ; .)
+	) ] { eos }
+	Statements<out program.methods["Main"].statements>
 	"KTHXBYE" { eos }
 .
 
-Statements<.List<Statement> statements.>
-=													(. Statement stat; .)
-	{ ( CanHasStatement | Statement<out stat>		(. statements.Add(stat); .)
+Statements<.out Statement stat.>					(. BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; .)
+=													(. Statement s; .)
+	{ IF(StartOf(1) && scanner.Peek().kind != _outta) 
+	( CanHasStatement | Statement<out s>			(. bs.statements.Add(s); .)
 	  ) { eos } }
 .
 
@@ -67,9 +72,11 @@ Statement<out Statement stat>						(. stat = null; .)
 	GimmehStatement<out stat>
 	| IHasAStatement<out stat>
 	| LoopStatement<out stat>
-	| GTFOStatement<out stat>
+	| BreakStatement<out stat>
+	| ContinueStatement<out stat>
 	| BinaryOpStatement<out stat>
 	| IzStatement<out stat>
+	| SwitchStatement<out stat>
 	| QuitStatement<out stat>
 	| AssignmentStatement<out stat>
 	| PrintStatement<out stat>
@@ -87,9 +94,17 @@ GimmehStatement<out Statement stat>
 	] LValue<out ins.dest>							(. SetEndPragma(stat); .)
 .
 
-GTFOStatement<out Statement stat>
-=													(. stat = new BreakStatement(GetPragma(la)); .)
-	"GTFO"											(. SetEndPragma(stat); .)
+BreakStatement<out Statement stat>
+=													(. BreakStatement bs = new BreakStatement(GetPragma(la)); stat = bs; .)
+	( "GTFO"										(. Warning("GTFO is deprecated in favor of ENUF"); .)
+	| "ENUF" [[ "OV" ("YR"|"UR") ] ident			(. bs.label = t.val; .)
+	] )												(. SetEndPragma(stat); .)
+.
+
+ContinueStatement<out Statement stat>
+=													(. ContinueStatement cs = new ContinueStatement(GetPragma(la)); stat = cs; .)
+	"MOAR" [[ "OV" ("YR"|"UR") ] ident				(. cs.label = t.val; .)
+	]												(. SetEndPragma(stat); .)
 .
 
 IHasAStatement<out Statement stat>
@@ -99,10 +114,12 @@ IHasAStatement<out Statement stat>
 
 LoopStatement<out Statement stat>
 =													(. LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; .)
-	"IM" "IN" "YR" ident							(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
+	"IM" "IN" ("YR"|"UR") ident						(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
 	{ eos }
-	Statements<ls.statements>
-	"KTHX"											(. EndScope(); .)
+	Statements<out ls.statements>
+	( "KTHX"										(. Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); .)
+	| "IM" "OUTTA" ("YR"|"UR") ident				(. if(t.val != ls.name) Error("Loop terminator label does not match loop label"); .)
+	)												(. EndScope(); .)
 .
 
 BinaryOpStatement<out Statement stat>
@@ -116,22 +133,39 @@ BinaryOpStatement<out Statement stat>
 .
 
 IzStatement<out Statement stat>
-=													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; Statement st; .)
+=													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; ConditionalStatement cur = cs; Statement st; .)
 	"IZ" Expression<out cs.condition>
 	( "?" | eos )									(. SetEndPragma(stat); .)
 	{ eos }
 		[ "YARLY" { eos } ]							(. BeginScope(); .)
-		Statements<cs.trueStatements>				(. EndScope(); .)
+		Statements<out cs.trueStatements>			(. EndScope(); .)
+		{ "MEBBE" [ "IZ" ]							(. cur.falseStatements = new ConditionalStatement(GetPragma(la)); cur = (ConditionalStatement)cur.falseStatements; .)
+		Expression<out cur.condition> "?" { eos } 	(. BeginScope(); .)
+		Statements<out cur.trueStatements>			(. EndScope(); .)
+		}
 		[ "NOWAI" { eos }							(. BeginScope(); .)
-		  Statements<cs.falseStatements>			(. EndScope(); .)
+		  Statements<out cur.falseStatements>		(. EndScope(); .)
 		]
 	"KTHX"
 .
 
+SwitchStatement<out Statement stat>
+=													(. SwitchStatement ss = new SwitchStatement(GetPragma(la)); stat = ss; Object label; Statement block; .)
+	"WTF" ["IZ"] Expression<out ss.control> "?" { eos }
+	{ 
+		"OMG" Const<out label> ["!"] { eos }
+		Statements<out block>						(. AddCase(ss, label, block); .)
+	}
+	[
+		"OMGWTF" ["?"] { eos }
+		Statements<out ss.defaultCase>
+	]
+	"KTHX"
+.
 QuitStatement<out Statement stat>					(. QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; .)
 =
 	( "BYES"										(. qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
-	| "DIAF"										(. qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
+	| "DIAF"										(. Warning("DIAF is deprecated. Use BYES instead."); qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
 	) [ Expression<out qs.code>
 	[ Expression<out qs.message>
 	] ]												(. SetEndPragma(stat); .)
@@ -205,14 +239,19 @@ MultiplicationExpression<out Expression exp, Expression left>
 	) Unary<out ibs.right> }						(. SetEndPragma(exp); .)
 .
 
-Unary<out Expression exp>							(. exp = null; .)
+Unary<out Expression exp>							(. exp = null; Object val; .)
 =
-	IF(la.kind == _intCon && !IsArrayIndex()) intCon (. exp = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(exp); .)
+	IF((la.kind == _intCon || la.kind == _stringCon) && !IsArrayIndex()) 
+	Const<out val>									(. exp = new PrimitiveExpression(GetPragma(t), val); SetEndPragma(exp); .)
 	|												(. LValueExpression lve = new LValueExpression(GetPragma(la)); exp = lve; .)
 	LValue<out lve.lval>							(. SetEndPragma(exp); .)
-	| stringCon										(. exp = new PrimitiveExpression(GetPragma(t), UnescapeString(t.val)); SetEndPragma(exp); .)
 .
 
+Const<out object val>								(. val = null; .)
+=
+	intCon											(. val = int.Parse(t.val); .)
+	| stringCon										(. val = UnescapeString(t.val); .)
+.
 LValue<out LValue lv>								(. lv = null; .)
 =
 	IF(!IsArrayIndex()) ident						(. ReferenceLocal(t.val); lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(lv); .)

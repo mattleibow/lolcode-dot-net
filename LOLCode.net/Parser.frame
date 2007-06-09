@@ -143,11 +143,15 @@ public class Errors {
 	}
 	
 	public void Warning (string file, int line, int col, string s) {
-		cec.Add(new CompilerError(file, line, col, "", s));
+		CompilerError ce = new CompilerError(file, line, col, "", s);
+		ce.IsWarning = true;
+		cec.Add(ce);
 	}
 	
 	public void Warning(string s) {
-		cec.Add(new CompilerError(null, 0, 0, "", s));
+		CompilerError ce = new CompilerError(null, 0, 0, "", s);
+		ce.IsWarning = true;
+		cec.Add(ce);
 	}
 } // Errors
 

@@ -148,8 +148,8 @@ internal class UTF8Buffer: Buffer {
 internal class Scanner {
 	const char EOL = '\n';
 	const int eofSym = 0; /* pdt */
-	const int maxT = 50;
-	const int noSym = 50;
+	const int maxT = 62;
+	const int noSym = 62;
 	char valCh;       // current input character (for token.val)
 
 	public Buffer buffer; // scanner buffer
@@ -242,46 +242,58 @@ internal class Scanner {
 	void CheckLiteral() {
 		switch (t.val.ToLower()) {
 			case "in": t.kind = 6; break;
-			case "hai": t.kind = 7; break;
-			case "kthxbye": t.kind = 8; break;
-			case "can": t.kind = 9; break;
-			case "has": t.kind = 10; break;
-			case "gimmeh": t.kind = 12; break;
-			case "line": t.kind = 13; break;
-			case "word": t.kind = 14; break;
-			case "lettar": t.kind = 15; break;
-			case "gtfo": t.kind = 16; break;
-			case "i": t.kind = 17; break;
-			case "a": t.kind = 18; break;
-			case "im": t.kind = 19; break;
-			case "yr": t.kind = 20; break;
-			case "kthx": t.kind = 21; break;
-			case "upz": t.kind = 22; break;
-			case "nerfz": t.kind = 23; break;
-			case "tiemzd": t.kind = 24; break;
-			case "ovarz": t.kind = 25; break;
-			case "iz": t.kind = 27; break;
-			case "yarly": t.kind = 28; break;
-			case "nowai": t.kind = 29; break;
-			case "byes": t.kind = 30; break;
-			case "diaf": t.kind = 31; break;
-			case "visible": t.kind = 32; break;
-			case "invisible": t.kind = 33; break;
-			case "lol": t.kind = 35; break;
-			case "r": t.kind = 36; break;
-			case "and": t.kind = 37; break;
-			case "xor": t.kind = 38; break;
-			case "or": t.kind = 39; break;
-			case "not": t.kind = 40; break;
-			case "bigr": t.kind = 41; break;
-			case "than": t.kind = 42; break;
-			case "smalr": t.kind = 43; break;
-			case "liek": t.kind = 44; break;
-			case "up": t.kind = 45; break;
-			case "nerf": t.kind = 46; break;
-			case "tiemz": t.kind = 47; break;
-			case "ovar": t.kind = 48; break;
-			case "mah": t.kind = 49; break;
+			case "im": t.kind = 7; break;
+			case "outta": t.kind = 8; break;
+			case "hai": t.kind = 9; break;
+			case "to": t.kind = 10; break;
+			case "1.0": t.kind = 11; break;
+			case "ircspecz": t.kind = 12; break;
+			case "kthxbye": t.kind = 13; break;
+			case "can": t.kind = 14; break;
+			case "has": t.kind = 15; break;
+			case "gimmeh": t.kind = 17; break;
+			case "line": t.kind = 18; break;
+			case "word": t.kind = 19; break;
+			case "lettar": t.kind = 20; break;
+			case "gtfo": t.kind = 21; break;
+			case "enuf": t.kind = 22; break;
+			case "ov": t.kind = 23; break;
+			case "yr": t.kind = 24; break;
+			case "ur": t.kind = 25; break;
+			case "moar": t.kind = 26; break;
+			case "i": t.kind = 27; break;
+			case "a": t.kind = 28; break;
+			case "kthx": t.kind = 29; break;
+			case "upz": t.kind = 30; break;
+			case "nerfz": t.kind = 31; break;
+			case "tiemzd": t.kind = 32; break;
+			case "ovarz": t.kind = 33; break;
+			case "iz": t.kind = 35; break;
+			case "yarly": t.kind = 36; break;
+			case "mebbe": t.kind = 37; break;
+			case "nowai": t.kind = 38; break;
+			case "wtf": t.kind = 39; break;
+			case "omg": t.kind = 40; break;
+			case "omgwtf": t.kind = 42; break;
+			case "byes": t.kind = 43; break;
+			case "diaf": t.kind = 44; break;
+			case "visible": t.kind = 45; break;
+			case "invisible": t.kind = 46; break;
+			case "lol": t.kind = 47; break;
+			case "r": t.kind = 48; break;
+			case "and": t.kind = 49; break;
+			case "xor": t.kind = 50; break;
+			case "or": t.kind = 51; break;
+			case "not": t.kind = 52; break;
+			case "bigr": t.kind = 53; break;
+			case "than": t.kind = 54; break;
+			case "smalr": t.kind = 55; break;
+			case "liek": t.kind = 56; break;
+			case "up": t.kind = 57; break;
+			case "nerf": t.kind = 58; break;
+			case "tiemz": t.kind = 59; break;
+			case "ovar": t.kind = 60; break;
+			case "mah": t.kind = 61; break;
 			default: break;
 		}
 	}
@@ -304,7 +316,7 @@ internal class Scanner {
 			case 2:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 2;}
 				else if (ch == 'e') {AddCh(); goto case 3;}
-				else {t.kind = 3; break;}
+				else {t.kind = 3; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
 			case 3:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 5;}
 				else if (ch == '+' || ch == '-') {AddCh(); goto case 4;}
@@ -314,14 +326,14 @@ internal class Scanner {
 				else {t.kind = noSym; break;}
 			case 5:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 5;}
-				else {t.kind = 3; break;}
+				else {t.kind = 3; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
 			case 6:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 7;}
 				else {t.kind = noSym; break;}
 			case 7:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 7;}
 				else if (ch == 'e') {AddCh(); goto case 8;}
-				else {t.kind = 3; break;}
+				else {t.kind = 3; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
 			case 8:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 10;}
 				else if (ch == '+' || ch == '-') {AddCh(); goto case 9;}
@@ -331,7 +343,7 @@ internal class Scanner {
 				else {t.kind = noSym; break;}
 			case 10:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 10;}
-				else {t.kind = 3; break;}
+				else {t.kind = 3; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
 			case 11:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 13;}
 				else if (ch == '+' || ch == '-') {AddCh(); goto case 12;}
@@ -341,7 +353,7 @@ internal class Scanner {
 				else {t.kind = noSym; break;}
 			case 13:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 13;}
-				else {t.kind = 3; break;}
+				else {t.kind = 3; t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}
 			case 14:
 				if (ch <= 9 || ch >= 11 && ch <= 12 || ch >= 14 && ch <= '!' || ch >= '#' && ch <= '[' || ch >= ']' && ch <= 65535) {AddCh(); goto case 14;}
 				else if (ch == '"') {AddCh(); goto case 17;}
@@ -365,7 +377,7 @@ internal class Scanner {
 				else if (ch <= 9 || ch >= 11 && ch <= 65535) {AddCh(); goto case 19;}
 				else {t.kind = noSym; break;}
 			case 20:
-				{t.kind = 51; break;}
+				{t.kind = 63; break;}
 			case 21:
 				if (ch >= '0' && ch <= '9') {AddCh(); goto case 21;}
 				else if (ch == '.') {AddCh(); goto case 6;}
@@ -439,12 +451,12 @@ internal class Scanner {
 				else if (ch == 92) {AddCh(); goto case 24;}
 				else {t.kind = noSym; break;}
 			case 37:
-				{t.kind = 11; break;}
+				{t.kind = 16; break;}
 			case 38:
-				{t.kind = 26; break;}
+				{t.kind = 34; break;}
 			case 39:
 				if (ch == '!') {AddCh(); goto case 38;}
-				else {t.kind = 34; break;}
+				else {t.kind = 41; break;}
 
 		}
 		t.val = new String(tval, 0, tlen);

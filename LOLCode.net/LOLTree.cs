@@ -41,109 +41,33 @@ namespace notdot.LOLCode
             this.location = loc;
         }
 
-        public abstract void Process(CompilerErrorCollection errors, ILGenerator gen);
-    }
-
-    internal class Program
-    {
-        public List<Statement> statements = new List<Statement>();
-        private List<Dictionary<string, LocalBuilder>> locals = new List<Dictionary<string, LocalBuilder>>();
-        public List<Label> startLabels = new List<Label>();
-        public List<Label> endLabels = new List<Label>();
-        public CompilerParameters compileropts;
-
-        public Program(CompilerParameters opts)
-        {
-            this.compileropts = opts;
-        }
-
-        public MethodInfo Emit(CompilerErrorCollection errors, ModuleBuilder mb)
-        {
-            TypeBuilder cls = mb.DefineType(compileropts.MainClass);
-            MethodBuilder main = cls.DefineMethod("Main", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new Type[] { });
-            ILGenerator gen = main.GetILGenerator();
-
-            foreach (Statement stat in statements)
-                stat.Process(errors, gen);
-
-            //locals.Add(new Dictionary<string, LocalBuilder>());
-            BeginScope(gen);
-
-            foreach (Statement stat in statements)
-                stat.Emit(this, gen);
-
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ret);
-
-            EndScope(gen);
-
-            Type t = cls.CreateType();
-            return t.GetMethod("Main");
-        }
-
-        public void BeginScope(ILGenerator gen)
-        {
-            gen.BeginScope();
-            locals.Add(new Dictionary<string, LocalBuilder>());
-        }
-
-        public void EndScope(ILGenerator gen)
-        {
-            locals.RemoveAt(locals.Count - 1);
-            gen.EndScope();
-        }
-
-        public LocalBuilder CreateLocal(string name, ILGenerator gen)
-        {
-            LocalBuilder ret = gen.DeclareLocal(typeof(object));
-            if(compileropts.IncludeDebugInformation)
-                ret.SetLocalSymInfo(name);
-            locals[locals.Count - 1].Add(name, ret);
-
-            return ret;
-        }
-
-        public LocalBuilder GetLocal(string name)
-        {
-            LocalBuilder ret;
-
-            for (int i = locals.Count - 1; i >= 0; i--)
-                if (locals[i].TryGetValue(name, out ret))
-                    return ret;
-
-            throw new KeyNotFoundException();
-        }
-
-        public static void WrapObject(Type t, ILGenerator gen)
-        {
-            if (t == typeof(int))
-            {
-                //Box the int
-                gen.Emit(OpCodes.Box, typeof(int));
-            }
-            else if (t == typeof(Dictionary<object, object>))
-            {
-                //Clone the array
-                gen.Emit(OpCodes.Newobj, typeof(Dictionary<object, object>).GetConstructor(new Type[] { typeof(Dictionary<object, object>) }));
-            }
-        }
+        public abstract void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen);
     }
 
     internal abstract class Statement : CodeObject
     {
-        public abstract void Emit(Program prog, ILGenerator gen);
+        public abstract void Emit(LOLMethod lm, ILGenerator gen);
 
         public Statement(CodePragma loc) : base(loc) { }
+    }
+
+    internal abstract class BreakableStatement : Statement
+    {
+        public abstract string Name { get; }
+        public abstract Label? BreakLabel { get; }
+        public abstract Label? ContinueLabel { get; }
+
+        public BreakableStatement(CodePragma loc) : base(loc) { }
     }
 
     internal abstract class Expression : Statement {
         public abstract Type EvaluationType { get; }
 
-        public abstract void Emit(Program prog, Type t, ILGenerator gen);
+        public abstract void Emit(LOLMethod lm, Type t, ILGenerator gen);
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
-            this.Emit(prog, typeof(object), gen);
+            this.Emit(lm, typeof(object), gen);
         }
 
         public Expression(CodePragma loc) : base(loc) { }
@@ -151,20 +75,39 @@ namespace notdot.LOLCode
 
     internal abstract class LValue : CodeObject
     {
-        public abstract void EmitGet(Program prog, Type t, ILGenerator gen);
-        public abstract void StartSet(Program prog, Type t, ILGenerator gen);
-        public abstract void EndSet(Program prog, Type t, ILGenerator gen);
+        public abstract void EmitGet(LOLMethod lm, Type t, ILGenerator gen);
+        public abstract void StartSet(LOLMethod lm, Type t, ILGenerator gen);
+        public abstract void EndSet(LOLMethod lm, Type t, ILGenerator gen);
 
         public LValue(CodePragma loc) : base(loc) { }
+    }
+
+    internal class BlockStatement : Statement
+    {
+        public List<Statement> statements = new List<Statement>();
+
+        public override void Emit(LOLMethod lm, ILGenerator gen)
+        {
+            foreach (Statement stat in statements)
+                stat.Emit(lm, gen);
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            foreach (Statement stat in statements)
+                stat.Process(lm, errors, gen);
+        }
+
+        public BlockStatement(CodePragma loc) : base(loc) { }
     }
 
     internal class VariableLValue : LValue
     {
         public string name;
 
-        public override void EmitGet(Program prog, Type t, ILGenerator gen)
+        public override void EmitGet(LOLMethod lm, Type t, ILGenerator gen)
         {
-            LocalBuilder local = prog.GetLocal(name);
+            LocalBuilder local = lm.GetLocal(name);
             if (t == typeof(Dictionary<object, object>))
             {
                 gen.Emit(OpCodes.Ldloca, local);
@@ -188,21 +131,21 @@ namespace notdot.LOLCode
             }
         }
 
-        public override void StartSet(Program prog, Type t, ILGenerator gen)
+        public override void StartSet(LOLMethod lm, Type t, ILGenerator gen)
         {
             //Nothing to do
         }
 
-        public override void  EndSet(Program prog, Type t, ILGenerator gen)
+        public override void  EndSet(LOLMethod lm, Type t, ILGenerator gen)
         {
-            Program.WrapObject(t, gen);
+            LOLProgram.WrapObject(t, gen);
 
             //Store it
-            LocalBuilder local = prog.GetLocal(name);
+            LocalBuilder local = lm.GetLocal(name);
             gen.Emit(OpCodes.Stloc, local);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
             return;
         }
@@ -216,13 +159,13 @@ namespace notdot.LOLCode
         public LValue lval;
         public Expression index;
 
-        public override void EmitGet(Program prog, Type t, ILGenerator gen)
+        public override void EmitGet(LOLMethod lm, Type t, ILGenerator gen)
         {
             //Get the object we're fetching from
-            lval.EmitGet(prog, typeof(Dictionary<object,object>), gen);
+            lval.EmitGet(lm, typeof(Dictionary<object,object>), gen);
 
             //Calculate the index
-            index.Emit(prog, typeof(object), gen);
+            index.Emit(lm, typeof(object), gen);
 
             //Get the value
             if (t == typeof(Dictionary<object, object>))
@@ -247,27 +190,27 @@ namespace notdot.LOLCode
             }
         }
 
-        public override void StartSet(Program prog, Type t, ILGenerator gen)
+        public override void StartSet(LOLMethod lm, Type t, ILGenerator gen)
         {
             //Get the object we're setting to
-            lval.EmitGet(prog, typeof(Dictionary<object,object>), gen);
+            lval.EmitGet(lm, typeof(Dictionary<object,object>), gen);
 
             //Calculate the index
-            index.Emit(prog, typeof(object), gen);
+            index.Emit(lm, typeof(object), gen);
         }
 
-        public override void  EndSet(Program prog, Type t, ILGenerator gen)
+        public override void  EndSet(LOLMethod lm, Type t, ILGenerator gen)
         {
-            Program.WrapObject(t, gen);
+            LOLProgram.WrapObject(t, gen);
 
             //Set
             gen.EmitCall(OpCodes.Callvirt, typeof(Dictionary<object, object>).GetProperty("Item", new Type[] { typeof(object) }).GetSetMethod(), null);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            lval.Process(errors, gen);
-            index.Process(errors, gen);
+            lval.Process(lm, errors, gen);
+            index.Process(lm, errors, gen);
         }
 
         public ArrayIndexLValue(CodePragma loc) : base(loc) { }
@@ -282,14 +225,14 @@ namespace notdot.LOLCode
             get { return typeof(object); }
         }
 
-        public override void Emit(Program prog, Type t, ILGenerator gen)
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
         {
-            lval.EmitGet(prog, t, gen);
+            lval.EmitGet(lm, t, gen);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            lval.Process(errors, gen);
+            lval.Process(lm, errors, gen);
         }
 
         public LValueExpression(CodePragma loc) : base(loc) { }
@@ -301,19 +244,19 @@ namespace notdot.LOLCode
         public LValue lval;
         public Expression rval;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             location.MarkSequencePoint(gen);
 
-            lval.StartSet(prog, rval.EvaluationType, gen);
-            rval.Emit(prog, rval.EvaluationType, gen);
-            lval.EndSet(prog, rval.EvaluationType, gen);
+            lval.StartSet(lm, rval.EvaluationType, gen);
+            rval.Emit(lm, rval.EvaluationType, gen);
+            lval.EndSet(lm, rval.EvaluationType, gen);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            lval.Process(errors, gen);
-            rval.Process(errors, gen);
+            lval.Process(lm, errors, gen);
+            rval.Process(lm, errors, gen);
         }
 
         public AssignmentStatement(CodePragma loc) : base(loc) { }
@@ -323,12 +266,12 @@ namespace notdot.LOLCode
     {
         public string name;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
-            prog.CreateLocal(name, gen);
+            lm.CreateLocal(name, gen);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
             return;
         }
@@ -336,39 +279,52 @@ namespace notdot.LOLCode
         public VariableDeclarationStatement(CodePragma loc) : base(loc) { }
     }
 
-    internal class LoopStatement : Statement
+    internal class LoopStatement : BreakableStatement
     {
-        public string name;
-        public List<Statement> statements = new List<Statement>();
+        public string name = null;
+        public Statement statements;
+        private Label m_breakLabel;
+        private Label m_continueLabel;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override Label? BreakLabel
         {
-            Label start = gen.DefineLabel();
-            gen.MarkLabel(start);
-            prog.startLabels.Add(start);
-
-            Label end = gen.DefineLabel();
-            prog.endLabels.Add(end);
-
-            prog.BeginScope(gen);
-
-            foreach (Statement stat in statements)
-                stat.Emit(prog, gen);
-
-            prog.EndScope(gen);
-
-            gen.Emit(OpCodes.Br, start);
-
-            gen.MarkLabel(end);            
-
-            prog.startLabels.RemoveAt(prog.startLabels.Count - 1);
-            prog.endLabels.RemoveAt(prog.endLabels.Count - 1);
+            get { return m_breakLabel; }
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override Label? ContinueLabel
         {
-            foreach (Statement stat in statements)
-                stat.Process(errors, gen);
+            get { return m_continueLabel; }
+        }
+
+        public override string Name
+        {
+            get { return name; }
+        }
+
+        public override void Emit(LOLMethod lm, ILGenerator gen)
+        {
+            lm.breakables.Add(this);
+            gen.MarkLabel(m_continueLabel);
+
+            lm.BeginScope(gen);
+            statements.Emit(lm, gen);
+            lm.EndScope(gen);
+
+            gen.Emit(OpCodes.Br, m_continueLabel);
+
+            gen.MarkLabel(m_breakLabel);
+
+            lm.breakables.RemoveAt(lm.breakables.Count - 1);
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            m_breakLabel = gen.DefineLabel();
+            m_continueLabel = gen.DefineLabel();
+
+            lm.breakables.Add(this);
+            statements.Process(lm, errors, gen);
+            lm.breakables.RemoveAt(lm.breakables.Count - 1);
         }
 
         public LoopStatement(CodePragma loc) : base(loc) { }
@@ -380,20 +336,20 @@ namespace notdot.LOLCode
         public OpCode op;
         public Expression amount;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             location.MarkSequencePoint(gen);
-            lval.StartSet(prog, typeof(int), gen);
-            lval.EmitGet(prog, typeof(int), gen);
-            amount.Emit(prog, typeof(int), gen);
+            lval.StartSet(lm, typeof(int), gen);
+            lval.EmitGet(lm, typeof(int), gen);
+            amount.Emit(lm, typeof(int), gen);
             gen.Emit(op);
-            lval.EndSet(prog, typeof(int), gen);
+            lval.EndSet(lm, typeof(int), gen);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            lval.Process(errors, gen);
-            amount.Process(errors, gen);
+            lval.Process(lm, errors, gen);
+            amount.Process(lm, errors, gen);
 
             if (amount.EvaluationType != typeof(int) && amount.EvaluationType != typeof(object))
             {
@@ -413,7 +369,7 @@ namespace notdot.LOLCode
 	        get { return value.GetType(); }
         }
 
-        public override void Emit(Program prog, Type t, ILGenerator gen)
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
         {
             if (value is int && t == typeof(string))
                 value = ((int)value).ToString();
@@ -433,7 +389,7 @@ namespace notdot.LOLCode
             }
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
             if(value.GetType() != typeof(int) && value.GetType() != typeof(string))
                 //We throw an exception here because this would indicate an issue with the compiler, not with the code being compiled.
@@ -443,59 +399,56 @@ namespace notdot.LOLCode
         }
 
         public PrimitiveExpression(CodePragma loc) : base(loc) { }
-        public PrimitiveExpression(CodePragma loc, int val) : base(loc) { value = val; }
-        public PrimitiveExpression(CodePragma loc, string val) : base(loc) { value = val; }
+        public PrimitiveExpression(CodePragma loc, object val) : base(loc) { value = val; }
     }
 
     internal class ConditionalStatement : Statement
     {
         public Expression condition;
-        public List<Statement> trueStatements = new List<Statement>();
-        public List<Statement> falseStatements = new List<Statement>();
+        public Statement trueStatements;
+        public Statement falseStatements;
         public Label ifFalse;
         public Label statementEnd;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             //Condition
             location.MarkSequencePoint(gen);
-            condition.Emit(prog, condition.EvaluationType, gen);
+            condition.Emit(lm, condition.EvaluationType, gen);
 
             if (!(condition is ComparisonExpression))
                 //If the condition is a comparisonexpression, it emits the branch instruction
                 gen.Emit(OpCodes.Brfalse, ifFalse);
 
             //True statements
-            prog.BeginScope(gen);
-            foreach (Statement stmt in trueStatements)
-                stmt.Emit(prog, gen);
-            if(falseStatements.Count > 0)
+            lm.BeginScope(gen);
+            trueStatements.Emit(lm, gen);
+            if(falseStatements is BlockStatement &&  ((BlockStatement)falseStatements).statements.Count > 0)
                 gen.Emit(OpCodes.Br, statementEnd);
-            prog.EndScope(gen);
+            lm.EndScope(gen);
 
             //False statements
             gen.MarkLabel(ifFalse);
-            if (falseStatements.Count > 0)
+            if (falseStatements is BlockStatement &&  ((BlockStatement)falseStatements).statements.Count > 0)
             {
-                prog.BeginScope(gen);
-                foreach (Statement stmt in falseStatements)
-                    stmt.Emit(prog, gen);
-                prog.EndScope(gen);
+                lm.BeginScope(gen);
+                falseStatements.Emit(lm, gen);
+                lm.EndScope(gen);
             }
 
             //End of conditional
             gen.MarkLabel(statementEnd);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
             ifFalse = gen.DefineLabel();
             statementEnd = gen.DefineLabel();
 
             //If there are false statements but no true statements, invert the comparison and the branches
-            if (trueStatements.Count == 0)
+            if (trueStatements is BlockStatement && ((BlockStatement)trueStatements).statements.Count == 0)
             {
-                List<Statement> temp = trueStatements;
+                Statement temp = trueStatements;
                 trueStatements = falseStatements;
                 falseStatements = temp;
 
@@ -509,11 +462,9 @@ namespace notdot.LOLCode
                 }
             }
 
-            condition.Process(errors, gen);
-            foreach (Statement stat in trueStatements)
-                stat.Process(errors, gen);
-            foreach (Statement stat in falseStatements)
-                stat.Process(errors, gen);
+            condition.Process(lm, errors, gen);
+            trueStatements.Process(lm, errors, gen);
+            falseStatements.Process(lm, errors, gen);
 
             if (condition is ComparisonExpression)
                 (condition as ComparisonExpression).ifFalse = ifFalse;
@@ -522,11 +473,300 @@ namespace notdot.LOLCode
         public ConditionalStatement(CodePragma loc) : base(loc) { }
     }
 
+    /// <summary>
+    /// A switch statement
+    /// </summary>
+    /// <remarks>
+    /// Switch statements are fairly complex to emit in assembly. The general structure of the statement is like this:
+    ///   Type check (jumps to either string or integer jump table)
+    ///   String jump table
+    ///   Jump to default case
+    ///   Integer jump table
+    ///   Jump to default case
+    ///   Statement list
+    ///   Default case
+    ///   End of switch
+    /// If the switch statement only has one type (string or int), the type check and the jump table of the type not
+    /// present will be omitted.
+    /// </remarks>
+    internal class SwitchStatement : BreakableStatement
+    {
+        public class Case : IComparable<Case>
+        {
+            public object name;
+            public Statement statement;
+            public Label label;
+
+            public Case(object name, Statement stat)
+            {
+                this.name = name;
+                this.statement = stat;
+            }
+
+            public int CompareTo(Case other)
+            {
+                if (name is int)
+                {
+                    return ((int)name).CompareTo((int)other.name);
+                }
+                else
+                {
+                    return (name as string).CompareTo(other.name as string);
+                }
+            }
+        }
+
+        public Expression control;
+        public List<Case> cases = new List<Case>();
+        public Statement defaultCase = null;
+
+        private Case[] sortedCases = null;
+        private Label m_breakLabel;
+        private Label defaultLabel;
+
+        public override string Name
+        {
+            get { return null; }
+        }
+
+        public override Label? BreakLabel
+        {
+            get { return m_breakLabel; }
+        }
+
+        public override Label? ContinueLabel
+        {
+            get { return null; }
+        }
+
+        public override void Emit(LOLMethod lm, ILGenerator gen)
+        {
+            lm.breakables.Add(this);
+            lm.BeginScope(gen);
+            location.MarkSequencePoint(gen);
+
+            if (cases[0].name is int)
+            {
+                //Switch is integer
+                control.Emit(lm, typeof(int), gen);
+                EmitIntegerSwitch(lm, gen);
+            }
+            else if (cases[0].name is string)
+            {
+                //Switch is string
+                control.Emit(lm, typeof(string), gen);
+                EmitStringSwitch(lm, gen);
+            }
+
+            gen.Emit(OpCodes.Br, defaultLabel);
+
+            //Output code for all the cases
+            foreach (Case c in cases)
+            {
+                gen.MarkLabel(c.label);
+                c.statement.Emit(lm, gen);
+            }
+
+            //Default case
+            gen.MarkLabel(defaultLabel);
+            defaultCase.Emit(lm, gen);
+
+            //End of statement
+            gen.MarkLabel(m_breakLabel);
+
+            lm.EndScope(gen);
+            lm.breakables.RemoveAt(lm.breakables.Count - 1);
+        }
+
+        private delegate void SwitchComparisonDelegate(ILGenerator gen, Case c);
+
+        private void EmitIntegerSwitch(LOLMethod lm, ILGenerator gen)
+        {
+            if (sortedCases.Length * 2 >= (((int)sortedCases[sortedCases.Length - 1].name) - ((int)sortedCases[0].name)))
+            {
+                //Switch is compact, emit a jump table
+                EmitIntegerJumpTable(lm, gen);
+            }
+            else
+            {
+                //Switch is not compact - emit a binary tree
+                LocalBuilder loc = lm.GetTempLocal(gen, typeof(int));
+                gen.Emit(OpCodes.Stloc, loc);
+                EmitSwitchTree(lm, gen, 0, sortedCases.Length, loc, delegate(ILGenerator ig, Case c)
+                {
+                    ig.Emit(OpCodes.Ldc_I4, (int)c.name);
+                    ig.Emit(OpCodes.Sub);
+                });
+                lm.ReleaseTempLocal(loc);
+            }
+        }
+
+        private void EmitIntegerJumpTable(LOLMethod lm, ILGenerator gen)
+        {
+            int len = ((int)sortedCases[sortedCases.Length - 1].name) - ((int)sortedCases[0].name) + 1;
+            int offset = (int)sortedCases[0].name;
+            if(offset < len / 2) {
+                len += offset;
+                offset = 0;
+            }
+
+            Label[] jumpTable = new Label[len];
+            int casePtr = 0;
+
+            if (offset > 0)
+            {
+                gen.Emit(OpCodes.Ldc_I4, offset);
+                gen.Emit(OpCodes.Sub);
+            }
+
+            for (int i = 0; i < len; i++)
+            {
+                if (((int)sortedCases[casePtr].name) == i + offset)
+                {
+                    jumpTable[i] = sortedCases[casePtr++].label = gen.DefineLabel();
+                }
+                else
+                {
+                    jumpTable[i] = defaultLabel;
+                }
+            }
+
+            gen.Emit(OpCodes.Switch, jumpTable);
+        }
+
+        private void EmitStringSwitch(LOLMethod lm, ILGenerator gen)
+        {
+            LocalBuilder loc = lm.GetTempLocal(gen, typeof(string));
+            gen.Emit(OpCodes.Stloc, loc);
+            EmitSwitchTree(lm, gen, 0, sortedCases.Length, loc, delegate(ILGenerator ig, Case c)
+            {
+                ig.Emit(OpCodes.Ldstr, (string)c.name);
+                ig.EmitCall(OpCodes.Call, typeof(string).GetMethod("Compare", BindingFlags.Public | BindingFlags.Static, null, new Type[] { typeof(string), typeof(string) }, null), null);
+            });
+            lm.ReleaseTempLocal(loc);
+        }
+
+        private void EmitSwitchTree(LOLMethod lm, ILGenerator gen, int off, int len, LocalBuilder loc, SwitchComparisonDelegate compare)
+        {
+            Label branch;
+
+            int idx = off + len / 2;
+            Case c = sortedCases[idx];
+            c.label = gen.DefineLabel();
+
+            //Load the variable and compare it with the current case
+            gen.Emit(OpCodes.Ldloc, loc);
+            compare(gen, c);
+
+            if (len == 1)
+            {
+                //If we're in a range of one, we can simplify things
+                gen.Emit(OpCodes.Ldc_I4_0);
+                gen.Emit(OpCodes.Beq, c.label);
+                gen.Emit(OpCodes.Br, defaultLabel);
+            }
+            else if(idx == off)
+            {
+                //The less-than case is default, so test that last
+                gen.Emit(OpCodes.Dup);
+                gen.Emit(OpCodes.Ldc_I4_0);
+                branch = gen.DefineLabel();
+                gen.Emit(OpCodes.Bgt, branch);
+                gen.Emit(OpCodes.Brfalse, c.label);
+                //Not greater and not zero - must be less
+                gen.Emit(OpCodes.Br, defaultLabel);
+
+                gen.MarkLabel(branch);
+                gen.Emit(OpCodes.Pop);
+                EmitSwitchTree(lm, gen, off + 1, len - 1, loc, compare);
+            }
+            else if (idx == off + len - 1)
+            {
+                //The greater-than case is default,  so test that last
+                gen.Emit(OpCodes.Dup);
+                gen.Emit(OpCodes.Ldc_I4_0);
+                branch = gen.DefineLabel();
+                gen.Emit(OpCodes.Blt, branch);
+                gen.Emit(OpCodes.Brfalse, c.label);
+                //Not less and not zero - must be greater
+                gen.Emit(OpCodes.Br, defaultLabel);
+
+                gen.MarkLabel(branch);
+                gen.Emit(OpCodes.Pop);
+                EmitSwitchTree(lm, gen, off, len - 1, loc, compare);
+            }
+            else
+            {
+                //Both branches are non-empty
+                gen.Emit(OpCodes.Dup);
+                gen.Emit(OpCodes.Ldc_I4_0);
+                branch = gen.DefineLabel();
+                gen.Emit(OpCodes.Blt, branch);
+                gen.Emit(OpCodes.Brfalse, c.label);
+                //Not less and not zero - must be greater
+                EmitSwitchTree(lm, gen, idx + 1, len - (idx - off) - 1, loc, compare);
+
+                gen.MarkLabel(branch);
+                gen.Emit(OpCodes.Pop);
+                EmitSwitchTree(lm, gen, off, idx - off, loc, compare);
+            }
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            m_breakLabel = gen.DefineLabel();
+            if (defaultCase != null)
+                defaultLabel = gen.DefineLabel();
+
+            Type t = null;
+            foreach (Case c in cases)
+            {
+                if (c.name.GetType() != t)
+                {
+                    if (t != null)
+                    {
+                        errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "A WTF statement cannot have OMGs with more than one type"));
+                        break;
+                    }
+                    else
+                    {
+                        t = c.name.GetType();
+                    }
+                }
+            }
+
+            if (t != typeof(int) && t != typeof(string))
+            {
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "OMG labels must be NUMBARs or YARNs"));
+            }
+
+            //Sort the cases
+            sortedCases = new Case[cases.Count];
+            cases.CopyTo(sortedCases);
+            Array.Sort<Case>(sortedCases);
+
+            //Check for duplicates
+            for (int i = 1; i < sortedCases.Length; i++)
+                if (sortedCases[i - 1].CompareTo(sortedCases[i]) == 0)
+                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Duplicate OMG label: \"{0}\"", sortedCases[i].name)));
+
+            //Process child statements
+            lm.breakables.Add(this);
+            control.Process(lm, errors, gen);
+            foreach (Case c in cases)
+                c.statement.Process(lm, errors, gen);
+            defaultCase.Process(lm, errors, gen);
+            lm.breakables.RemoveAt(lm.breakables.Count - 1);
+        }
+
+        public SwitchStatement(CodePragma loc) : base(loc) { }
+    }
+
     internal class QuitStatement : Statement {
         public Expression code;
         public Expression message = null;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             location.MarkSequencePoint(gen);
 
@@ -536,21 +776,21 @@ namespace notdot.LOLCode
                 gen.EmitCall(OpCodes.Call, typeof(Console).GetProperty("Error", BindingFlags.Public | BindingFlags.Static).GetGetMethod(), null);
 
                 //Get the message
-                message.Emit(prog, typeof(string), gen);
+                message.Emit(lm, typeof(string), gen);
 
                 //Write the message
                 gen.EmitCall(OpCodes.Callvirt, typeof(TextWriter).GetMethod("WriteLine", new Type[] { typeof(string) }), null);
             }
 
-            code.Emit(prog, gen);
+            code.Emit(lm, gen);
             gen.Emit(OpCodes.Ret);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            code.Process(errors, gen);
+            code.Process(lm, errors, gen);
             if (message != null)
-                message.Process(errors, gen);
+                message.Process(lm, errors, gen);
 
             if(code.EvaluationType != typeof(int) && code.EvaluationType != typeof(object))
                 errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "First argument to BYES or DIAF must be an integer"));
@@ -566,7 +806,7 @@ namespace notdot.LOLCode
         public Expression message;
         public bool newline = true;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             location.MarkSequencePoint(gen);
 
@@ -581,7 +821,7 @@ namespace notdot.LOLCode
             }
 
             //Get the message
-            message.Emit(prog, typeof(object), gen);
+            message.Emit(lm, typeof(object), gen);
 
             //Indicate if it requires a newline or not
             if (newline)
@@ -596,9 +836,9 @@ namespace notdot.LOLCode
             gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("PrintObject"), null);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            message.Process(errors, gen);
+            message.Process(lm, errors, gen);
         }
 
         public PrintStatement(CodePragma loc) : base(loc) { }
@@ -610,13 +850,13 @@ namespace notdot.LOLCode
         public OpCode op;
         public bool negate = false;
 
-        public override void Emit(Program prog, Type t, ILGenerator gen)
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
         {
             if(typeof(int) != t && typeof(object) != t)
                 throw new ArgumentException("IntegerBinaryExpressions can only evaluate to type int");
 
-            left.Emit(prog, typeof(int), gen);
-            right.Emit(prog, typeof(int), gen);
+            left.Emit(lm, typeof(int), gen);
+            right.Emit(lm, typeof(int), gen);
             gen.Emit(op);
 
             if (typeof(object) == t)
@@ -628,10 +868,10 @@ namespace notdot.LOLCode
 	        get { return typeof(int); }
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            left.Process(errors, gen);
-            right.Process(errors, gen);
+            left.Process(lm, errors, gen);
+            right.Process(lm, errors, gen);
 
             if ((left.EvaluationType != typeof(int) && left.EvaluationType != typeof(object)) || (right.EvaluationType != typeof(int) && right.EvaluationType != typeof(object)))
                 errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Expression is not valid on operands of type {0} and {1}.", left.EvaluationType.Name, right.EvaluationType.Name)));
@@ -668,10 +908,10 @@ namespace notdot.LOLCode
             get { return typeof(int); }
         }
 
-        public override void Emit(Program prog, Type t, ILGenerator gen)
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
         {
-            left.Emit(prog, comparisonType, gen);
-            right.Emit(prog, comparisonType, gen);
+            left.Emit(lm, comparisonType, gen);
+            right.Emit(lm, comparisonType, gen);
 
             if (comparisonType == typeof(object))
             {
@@ -786,10 +1026,10 @@ namespace notdot.LOLCode
             }
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            left.Process(errors, gen);
-            right.Process(errors, gen);
+            left.Process(lm, errors, gen);
+            right.Process(lm, errors, gen);
 
             if (left.EvaluationType == right.EvaluationType)
             {
@@ -821,12 +1061,12 @@ namespace notdot.LOLCode
             get { return typeof(int); }
         }
 
-        public override void Emit(Program prog, Type t, ILGenerator gen)
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
         {
             gen.Emit(OpCodes.Not);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
             if (exp.EvaluationType != typeof(int))
                 errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Cannot negate a non-integer expression"));
@@ -847,11 +1087,11 @@ namespace notdot.LOLCode
         public IOAmount amount = IOAmount.Line;
         public LValue dest;
 
-        public override void Emit(Program prog, ILGenerator gen)
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             location.MarkSequencePoint(gen);
 
-            dest.StartSet(prog, typeof(string), gen);
+            dest.StartSet(lm, typeof(string), gen);
 
             gen.EmitCall(OpCodes.Call, typeof(Console).GetProperty("In", BindingFlags.Public | BindingFlags.Static).GetGetMethod(), null);
 
@@ -869,12 +1109,12 @@ namespace notdot.LOLCode
                     break;
             }
 
-            dest.EndSet(prog, typeof(string), gen);
+            dest.EndSet(lm, typeof(string), gen);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            dest.Process(errors, gen);
+            dest.Process(lm, errors, gen);
         }
 
         public InputStatement(CodePragma loc) : base(loc) { }
@@ -882,18 +1122,82 @@ namespace notdot.LOLCode
 
     internal class BreakStatement : Statement
     {
-        public override void Emit(Program prog, ILGenerator gen)
+        public string label = null;
+        private int breakIdx = -1;
+
+        public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             location.MarkSequencePoint(gen);
 
-            gen.Emit(OpCodes.Br, prog.endLabels[prog.endLabels.Count - 1]);
+            gen.Emit(OpCodes.Br, lm.breakables[breakIdx].BreakLabel.Value);
         }
 
-        public override void Process(CompilerErrorCollection errors, ILGenerator gen)
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            return;
+            breakIdx = lm.breakables.Count - 1;
+            if (label == null)
+            {
+                while (breakIdx >= 0 && !lm.breakables[breakIdx].BreakLabel.HasValue)
+                    breakIdx--;
+            }
+            else
+            {
+                while (breakIdx >= 0 && (lm.breakables[breakIdx].Name != label || !lm.breakables[breakIdx].BreakLabel.HasValue))
+                    breakIdx--;
+            }
+
+            if (breakIdx < 0)
+            {
+                if (label == null)
+                {
+                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "ENUF encountered, but nothing to break out of!"));
+                }
+                else
+                {
+                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Named ENUF \"{0}\" encountered, but nothing by that name exists to break out of!", label)));
+                }
+            }
         }
 
         public BreakStatement(CodePragma loc) : base(loc) { }
+    }
+
+    internal class ContinueStatement : Statement
+    {
+        public string label = null;
+        private int breakIdx = -1;
+
+        public override void Emit(LOLMethod lm, ILGenerator gen)
+        {
+            location.MarkSequencePoint(gen);
+
+            gen.Emit(OpCodes.Br, lm.breakables[breakIdx].ContinueLabel.Value);
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            breakIdx = lm.breakables.Count - 1;
+            if(label == null) {
+                while(breakIdx >= 0 && !lm.breakables[breakIdx].ContinueLabel.HasValue)
+                    breakIdx--;
+            } else {
+                while (breakIdx >= 0 && (lm.breakables[breakIdx].Name != label || !lm.breakables[breakIdx].ContinueLabel.HasValue))
+                    breakIdx--;
+            }
+
+            if (breakIdx < 0)
+            {
+                if (label == null)
+                {
+                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "MOAR encountered, but nothing to continue!"));
+                }
+                else
+                {
+                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Named MOAR \"{0}\" encountered, but nothing by that name exists to continue!", label)));
+                }
+            }
+        }
+
+        public ContinueStatement(CodePragma loc) : base(loc) { }
     }
 }
