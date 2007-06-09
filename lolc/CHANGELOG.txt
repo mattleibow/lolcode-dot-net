@@ -1,3 +1,11 @@
+Revision 30
+-----------
+- Made LOLCode IRCSPECZ compliant - see http://forum.lolcode.com/viewtopic.php?id=108
+- Improved string parsing - LOLCode.net now accepts strings with any of the escape sequences
+  accepted by C#
+- Fixed a bug with lolc's handling of relative paths
+- Assorted internal refactoring
+
 Revision 18
 -----------
 - Assorted optimisations to the generated IL
