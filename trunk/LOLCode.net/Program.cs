@@ -8,6 +8,7 @@ namespace notdot.LOLCode
     internal enum LOLCodeVersion
     {
         v1_0,
+        v1_1,
         IRCSPECZ
     }
 

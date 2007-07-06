@@ -1,19 +1,6 @@
 HAI
-I HAS A VAR
-LOL VAR R "ghj"
-WTF IZ VAR?
-OMG "abc"!
-	VISIBLE "Fifteh!"
-OMG "acd"!
-	VISIBLE "Fivez!"
-OMG "dee"!
-	VISIBLE "Fourz!"
-OMG "def"!
-	VISIBLE "Treez!"
-	ENUF
-OMG "ghi"!
-	VISIBLE "Stuffz"
-OMGWTF?
-	VISIBLE "Wtf?"
-KTHX
+CAN HAS STDIO?
+IM IN UR LOOP
+  GTFO
+IM OUTTA YR BASE
 KTHXBYE
