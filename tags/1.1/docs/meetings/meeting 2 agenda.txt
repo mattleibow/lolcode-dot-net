@@ -1,0 +1,108 @@
+Agenda format and contents borrowed from Eko.
+
+Meeting agenda for LOLCODE v1.1
+  Re: LOLCODE Developer Standardization Meeting
+
+1. Rules of the meeting
+  a. To facilitate the meeting, there will be one or two operators in the
+     channel.  This person will be responsible for voicing the appropriate
+     users, maintaining the peace in the channel, and keeping the meeting on
+     schedule.
+  b. The channel will be moderated.  Only users with voices or op may speak.
+  c. Only users who are developing an interpreter or compiler for LOLCODE may
+     be given voice privileges.  These people are the ones to whom suggestions
+     by bystanders (non-voiced users) should be directed, and they should
+     weigh the suggestion for its merits (not for its opinion) and paste it
+     verbatim in-channel if deemed relevant.
+  d. Bystanders are encouraged to use notices instead of messages.
+  e. Voting will be facilitated with the use of a bot.  Voting can be either
+     silent or public.  The following means of voting are supported:
+       [in-channel] "!yes" "!no" or "<botname>, yes" "<botname>, no"
+       /msg <botname> YES <channel>
+       /notice <botname YES <channel> (the bot will not confirm your vote)
+2. Standard references
+  a. See http://lolcode.com for the current LOLCODE canon and contributions.
+3. Quick IRC reference
+  a. /join #LOLCODE
+    - Join the channel specified (channels start with #)
+  b. /msg <user> <message goes here>
+    - Send a private message to the specified user
+    - Note, on freenode you must be registered!
+  c. /notice <user> <message goes here>
+    - Send a notice to the specified user
+    - Same as /msg, you must be registered
+  d. /part <channel>
+    - Leave a channel.
+    - An optional reason can be specified after the channel.
+  e. /quit <reason>
+    - Leave the IRC network for <reason>.
+4. Order of business
+  a. Call to order
+  b. Roll call
+    i.   All developers should state their project.
+    ii.  The moderator will give voices to appropriate users.
+  c. Minutes <none>
+  d. Officers' reports
+    -- If any of the creator(s) are present, they might want to say some
+       words.  Otherwise, no big deal.  Make sure you're read up on the
+       current LOLCODE canon and most of the contributions.
+  e. Commitee reports <none>
+  f. Old business
+    i.   CAN HAS statement
+        - Is this a preprocessing directive or an actual statement?
+        - If it's a preprocessing directive, is its argument quoted or unquoted or both?
+    ii.  I HAS A <var>
+        - Assignment at declaration time syntax? Using ITZ, R, or something else?
+        - Rename ARRAY to BUKKIT?
+    iii. GTFO and potential continue statement
+        - Allow named breaks/continues?
+    
+  g. New business
+    i.   Block comments?
+    ii.  File IO
+        - How do we open/close files?
+    iii. Continue statement
+    iv.  Reintroduce more block terminators instead of just KTHX?
+        - LOL{OL} for terminating multiple blocks?
+          - Significant parsing issues.
+    v.   Allow noninteger keys for BUKKIT/ARRAY? Eg, make it a dictionary/hash instead?
+    vi.  Is LOLCode case sensitive or case insensitive?
+    vii. Replacement of expressions with RPN/PRON notation?
+        - Reverse Polish Notation (RPN) is a means of expressing arithmetic expressions
+          in a stack-based manner. A quick overview can be found here:
+          http://en.wikipedia.org/wiki/Reverse_Polish_notation . Since LOLCode lacks a
+          defined operator precedence and any sort of grouping operator such as parantheses,
+          RPN seems well suited to the language.
+        - If no RPN, what is LOLCode's order of evaluation? As per C, or something else?
+        - If no RPN, do we need a grouping operator?
+    iix. Variable Typing
+        - Introduce strongly typed variables?
+          - Required or optional?
+        - Which typecasts are implicit, and which are explicit?
+          - Casting from NUMBAR to YARN
+          - Casting from YARN to NUMBAR
+          - Treating an array like a primitive
+          - Treating a primitive like an array
+        - Is there an explicit 'empty array' syntax?
+    ix.  Are arrays assigned by reference or by value? Eg, if you assign an array to another
+         variable, and modify the original variable, does the new variable show the
+         modification?
+    x.   Should a floating point type be introduced?
+    xi.  Should function calls be introduced?
+        - Are functions first-class? If so, can you declare them like normal functions?
+        - Declaration syntax
+        - Calling syntax
+    xii. Should a GOTO statement be introduced?
+        - GOTO syntax
+        - Label syntax
+    xiii.Should a GOSUB statement be introduced?
+        - GOSUB syntax
+        - RET syntax
+    xiv. Should a statement continuation keyword be introduced?
+    xv.  String operators (substring, concatenation, search, etc)
+        - Part of the base language, or a standard library (if we have functions)?
+        - Syntax?
+    xvi. Keyword for 'null'?
+    xvii.Is there a way to unset a value in an array? By setting it to null?
+    xiix.'else if' syntax?
+    xix. Switch statement?

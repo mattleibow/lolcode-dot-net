@@ -1,0 +1,274 @@
+using System.Collections.Generic;
+using System.Reflection.Emit;
+
+COMPILER LOLCode
+
+CHARACTERS
+	tab					= '\u0009'.
+	eol					= '\u000a'.
+	noteol				= ANY - eol.
+	cr					= '\u000d'.
+	newLine				= cr + eol.
+	
+	startLetter			= 'A' .. 'Z' + '_'.
+	partLetter			= '0' .. '9' + 'A' .. 'Z' + '_'.
+	
+	digit				= "0123456789".
+	hexDigit			= digit + "ABCDEFabcdef".	
+	notDigit			= ANY - digit.
+	
+	char				= ANY - "'" - '\\' - newLine.
+	regularStringChar	= ANY - '"' - '\\' - newLine.
+	ws					= " " + tab + '\u000b' + '\u000c'.
+	
+	any					= ANY.
+
+TOKENS
+	ident				= startLetter { partLetter }.
+	intCon				= digit { digit }.
+	realCon				= "." digit {digit} 
+						  [("e" | "E") ["+" | "-"] digit {digit}] 
+						| digit {digit} 
+						  ( "." digit {digit} 
+						    [("e" | "E" ) ["+" | "-"] digit {digit} ] 
+						    | ("e" | "E") ["+" | "-"] digit {digit}
+						  ).
+	stringCon			= "\""  { regularStringChar
+							| "\\\'" | "\\\"" | "\\\\" | "\\0" | "\\a" | "\\b" | "\\f" | "\\n" | "\\r"
+							| "\\t" | "\\v"
+							| "\\x" hexDigit [hexDigit] [hexDigit] [hexDigit]
+							| "\\u" hexDigit hexDigit hexDigit hexDigit
+							| "\\U" hexDigit hexDigit hexDigit hexDigit hexDigit hexDigit hexDigit hexDigit
+							} "\"".
+	eos					= eol | ".".
+	
+	can					= "CAN".
+	in					= "IN".
+	im					= "IM".
+	outta				= "OUTTA".
+
+PRAGMAS
+	comment				= "BTW" { noteol } eol.
+	blockcomment		= "OBTW" { any } "TLDR" ( eol | "," ).
+IGNORE tab + cr
+
+PRODUCTIONS
+LOLCode
+=
+	"HAI" [ "TO" ("1.0"								(. program.version = LOLCodeVersion.v1_0; .)
+	| "IRCSPECZ"									(. program.version = LOLCodeVersion.IRCSPECZ; .)
+	| "1.1"											(. program.version = LOLCodeVersion.v1_1; .)
+	) ] { eos }
+	Statements<out program.methods["Main"].statements>
+	"KTHXBYE" { eos }
+.
+
+Statements<.out Statement stat.>					(. BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; .)
+=													(. Statement s; .)
+	{ IF((StartOf(1) || la.kind == _can) && scanner.Peek().kind != _outta) 
+	( CanHasStatement | Statement<out s>			(. bs.statements.Add(s); .)
+	  ) { eos } }
+.
+
+Statement<out Statement stat>						(. stat = null; .)
+=
+	GimmehStatement<out stat>
+	| IHasAStatement<out stat>
+	| LoopStatement<out stat>
+	| BreakStatement<out stat>
+	| ContinueStatement<out stat>
+	| BinaryOpStatement<out stat>
+	| IzStatement<out stat>
+	| SwitchStatement<out stat>
+	| QuitStatement<out stat>
+	| AssignmentStatement<out stat>
+	| PrintStatement<out stat>
+.
+
+CanHasStatement
+=
+	"CAN" "HAS" ( stringCon | ident ) "?"
+.
+
+GimmehStatement<out Statement stat>
+=													(. InputStatement ins = new InputStatement(GetPragma(la)); stat = ins; .)
+	"GIMMEH" [ "LINE" | "WORD"						(. ins.amount = IOAmount.Word; .)
+	| "LETTAR"										(. ins.amount = IOAmount.Letter; .)
+	] LValue<out ins.dest>							(. SetEndPragma(stat); .)
+.
+
+BreakStatement<out Statement stat>
+=													(. BreakStatement bs = new BreakStatement(GetPragma(la)); stat = bs; .)
+	( "GTFO"										(. if(program.version == LOLCodeVersion.IRCSPECZ) Warning("GTFO is deprecated in favor of ENUF"); .)
+	| "ENUF" [[ "OV" ("YR"|"UR") ] ident			(. bs.label = t.val; .)
+	] )												(. SetEndPragma(stat); .)
+.
+
+ContinueStatement<out Statement stat>
+=													(. ContinueStatement cs = new ContinueStatement(GetPragma(la)); stat = cs; .)
+	"MOAR" [[ "OV" ("YR"|"UR") ] ident				(. cs.label = t.val; .)
+	]												(. SetEndPragma(stat); .)
+.
+
+IHasAStatement<out Statement stat>
+=													(. VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; .)
+	"I" "HAS" "A" ident								(. vds.name = t.val; CreateLocal(vds.name); SetEndPragma(stat); .)
+	[ "ITZ" Expression<out vds.expression> ]
+.
+
+LoopStatement<out Statement stat>
+=													(. LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; .)
+	"IM" "IN" ("YR"|"UR") ident						(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
+	{ eos }
+	Statements<out ls.statements>
+	( "KTHX"										(. if(program.version == LOLCodeVersion.IRCSPECZ) Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); .)
+	| "IM" "OUTTA" ("YR"|"UR") ident				(. if(t.val != ls.name) Error("Loop terminator label does not match loop label"); .)
+	)												(. EndScope(); .)
+.
+
+BinaryOpStatement<out Statement stat>
+=													(. BinaryOpStatement bos = new BinaryOpStatement(GetPragma(la)); bos.amount = new PrimitiveExpression(GetPragma(la), 1); stat = bos; .)
+	("UPZ"											(. bos.op = OpCodes.Add; .)
+	| "NERFZ"										(. bos.op = OpCodes.Sub; .)
+	| "TIEMZD"										(. bos.op = OpCodes.Mul; .)
+	| "OVARZ"										(. bos.op = OpCodes.Div; .)
+	) LValue<out bos.lval>
+	"!!" [ Expression<out bos.amount> ]				(. SetEndPragma(stat); .)
+.
+
+IzStatement<out Statement stat>
+=													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; ConditionalStatement cur = cs; Statement st; .)
+	"IZ" Expression<out cs.condition>
+	( "?" | eos )									(. SetEndPragma(stat); .)
+	{ eos }
+		[ "YARLY" { eos } ]							(. BeginScope(); .)
+		Statements<out cs.trueStatements>			(. EndScope(); .)
+		{ "MEBBE" [ "IZ" ]							(. cur.falseStatements = new ConditionalStatement(GetPragma(la)); cur = (ConditionalStatement)cur.falseStatements; .)
+		Expression<out cur.condition> "?" { eos } 	(. BeginScope(); .)
+		Statements<out cur.trueStatements>			(. EndScope(); .)
+		}
+		[ "NOWAI" { eos }							(. BeginScope(); .)
+		  Statements<out cur.falseStatements>		(. EndScope(); .)
+		]
+	"KTHX"
+.
+
+SwitchStatement<out Statement stat>
+=													(. SwitchStatement ss = new SwitchStatement(GetPragma(la)); stat = ss; Object label; Statement block; .)
+	"WTF" ["IZ"] Expression<out ss.control> "?" { eos }
+	{ 
+		"OMG" Const<out label> ["!"] { eos }
+		Statements<out block>						(. AddCase(ss, label, block); .)
+	}
+	[
+		"OMGWTF" ["?"] { eos }
+		Statements<out ss.defaultCase>
+	]
+	"KTHX"
+.
+QuitStatement<out Statement stat>					(. QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; .)
+=
+	( "BYES"										(. qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
+	| "DIAF"										(. if(program.version == LOLCodeVersion.IRCSPECZ) Warning("DIAF is deprecated. Use BYES instead."); qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
+	) [ Expression<out qs.code>
+	[ Expression<out qs.message>
+	] ]												(. SetEndPragma(stat); .)
+.
+
+PrintStatement<out Statement stat>					(. PrintStatement ps = new PrintStatement(GetPragma(la)); stat = ps; .)
+=
+	( "VISIBLE" | "INVISIBLE"						(. ps.stderr = true; .)
+	) Expression<out ps.message>
+	[ "!"											(. ps.newline = false; .)
+	]												(. SetEndPragma(stat); .)
+.
+
+AssignmentStatement<out Statement stat>
+=													(. AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; .)
+	"LOL" LValue<out ass.lval> 
+	"R" Expression<out ass.rval>					(. SetEndPragma(stat); .)
+.
+
+Expression<out Expression exp>
+=													(. Expression left; .)
+	Unary<out left> AndExpression<out exp, left>	(. SetEndPragma(exp); .)
+.
+
+AndExpression<out Expression exp, Expression left>
+=
+	XorExpression<out exp, left> { "AND"			(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.And; ibs.left = exp; exp = ibs; .)
+	  Unary<out ibs.right> 
+	  XorExpression<out ibs.right, ibs.right> }		(. SetEndPragma(exp); .)
+.
+
+XorExpression<out Expression exp, Expression left>
+=
+	OrExpression<out exp, left> { "XOR"				(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Xor; ibs.left = exp; exp = ibs; .)
+	  Unary<out ibs.right> 
+	  OrExpression<out ibs.right, ibs.right> }		(. SetEndPragma(exp); .)
+.
+
+OrExpression<out Expression exp, Expression left>
+=
+	ComparisonExpression<out exp, left> { "OR"		(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Or; ibs.left = exp; exp = ibs; .)
+	  Unary<out ibs.right> 
+	  ComparisonExpression<out ibs.right, ibs.right> } (. SetEndPragma(exp); .)
+.
+
+ComparisonExpression<out Expression exp, Expression left>
+=
+	ArithmeticExpression<out exp, left> {			(. ComparisonExpression ce = new ComparisonExpression(GetPragma(la)); ce.left = exp; exp = ce; .)
+	  [ "NOT"										(. ce.op |= ComparisonOperator.Not; .)
+	  ] ( "BIGR"									(. ce.op |= ComparisonOperator.GreaterThan; .)
+	  [ "THAN" ] | "SMALR"							(. ce.op |= ComparisonOperator.LessThan; .)
+	  [ "THAN" ] | "LIEK"							(. ce.op |= ComparisonOperator.Equal; .)
+	  ) Unary<out ce.right> 
+	  ArithmeticExpression<out ce.right, ce.right> } (. SetEndPragma(exp); .)
+.
+
+ArithmeticExpression<out Expression exp, Expression left>
+=
+	MultiplicationExpression<out exp, left> {		(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; .)
+	( "UP"											(. ibs.op = OpCodes.Add; .)
+	| "NERF"										(. ibs.op = OpCodes.Sub; .)
+	) Unary<out ibs.right> 
+	MultiplicationExpression<out ibs.right, ibs.right> } (. SetEndPragma(exp); .)
+.
+
+MultiplicationExpression<out Expression exp, Expression left>
+=													(. exp = left; .)
+	{												(. IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; .)
+	( "TIEMZ"										(. ibs.op = OpCodes.Mul; .)
+	| "OVAR"										(. ibs.op = OpCodes.Div; .)
+	) Unary<out ibs.right> }						(. SetEndPragma(exp); .)
+.
+
+Unary<out Expression exp>							(. exp = null; Object val; .)
+=
+	IF((la.kind == _intCon || la.kind == _stringCon) && !IsArrayIndex()) 
+	Const<out val>									(. exp = new PrimitiveExpression(GetPragma(t), val); SetEndPragma(exp); .)
+	|												(. LValueExpression lve = new LValueExpression(GetPragma(la)); exp = lve; .)
+	LValue<out lve.lval>							(. SetEndPragma(exp); .)
+.
+
+Const<out object val>								(. val = null; .)
+=
+	intCon											(. val = int.Parse(t.val); .)
+	| stringCon										(. val = UnescapeString(t.val); .)
+	| "NOOB"										(. val = null; .)
+.
+
+LValue<out LValue lv>								(. lv = null; .)
+=
+	IF(!IsArrayIndex()) ident						(. ReferenceLocal(t.val); lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(lv); .)
+	| ArrayIndex<out lv>
+.
+
+ArrayIndex<out LValue lv>
+=													(. ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; Object arg; .)
+	( ident											(. ReferenceLocal(t.val); alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); .)
+	| Const<out arg>								(. alv.index = new PrimitiveExpression(GetPragma(t), arg); SetEndPragma(alv.index); .)
+	) "IN" "MAH" LValue<out alv.lval>				(. SetEndPragma(alv); .)
+.
+
+END LOLCode.
