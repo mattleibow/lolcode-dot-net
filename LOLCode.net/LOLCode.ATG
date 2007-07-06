@@ -3,7 +3,6 @@ using System.Reflection.Emit;
 
 COMPILER LOLCode
 
-IGNORECASE
 CHARACTERS
 	tab					= '\u0009'.
 	eol					= '\u000a'.
@@ -21,6 +20,8 @@ CHARACTERS
 	char				= ANY - "'" - '\\' - newLine.
 	regularStringChar	= ANY - '"' - '\\' - newLine.
 	ws					= " " + tab + '\u000b' + '\u000c'.
+	
+	any					= ANY.
 
 TOKENS
 	ident				= startLetter { partLetter }.
@@ -48,7 +49,7 @@ TOKENS
 
 PRAGMAS
 	comment				= "BTW" { noteol } eol.
-	
+	blockcomment		= "OBTW" { any } "TLDR" ( eol | "," ).
 IGNORE tab + cr
 
 PRODUCTIONS
@@ -56,6 +57,7 @@ LOLCode
 =
 	"HAI" [ "TO" ("1.0"								(. program.version = LOLCodeVersion.v1_0; .)
 	| "IRCSPECZ"									(. program.version = LOLCodeVersion.IRCSPECZ; .)
+	| "1.1"											(. program.version = LOLCodeVersion.v1_1; .)
 	) ] { eos }
 	Statements<out program.methods["Main"].statements>
 	"KTHXBYE" { eos }
@@ -97,7 +99,7 @@ GimmehStatement<out Statement stat>
 
 BreakStatement<out Statement stat>
 =													(. BreakStatement bs = new BreakStatement(GetPragma(la)); stat = bs; .)
-	( "GTFO"										(. Warning("GTFO is deprecated in favor of ENUF"); .)
+	( "GTFO"										(. if(program.version == LOLCodeVersion.IRCSPECZ) Warning("GTFO is deprecated in favor of ENUF"); .)
 	| "ENUF" [[ "OV" ("YR"|"UR") ] ident			(. bs.label = t.val; .)
 	] )												(. SetEndPragma(stat); .)
 .
@@ -111,6 +113,7 @@ ContinueStatement<out Statement stat>
 IHasAStatement<out Statement stat>
 =													(. VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; .)
 	"I" "HAS" "A" ident								(. vds.name = t.val; CreateLocal(vds.name); SetEndPragma(stat); .)
+	[ "ITZ" Expression<out vds.expression> ]
 .
 
 LoopStatement<out Statement stat>
@@ -118,7 +121,7 @@ LoopStatement<out Statement stat>
 	"IM" "IN" ("YR"|"UR") ident						(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
 	{ eos }
 	Statements<out ls.statements>
-	( "KTHX"										(. Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); .)
+	( "KTHX"										(. if(program.version == LOLCodeVersion.IRCSPECZ) Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); .)
 	| "IM" "OUTTA" ("YR"|"UR") ident				(. if(t.val != ls.name) Error("Loop terminator label does not match loop label"); .)
 	)												(. EndScope(); .)
 .
@@ -166,7 +169,7 @@ SwitchStatement<out Statement stat>
 QuitStatement<out Statement stat>					(. QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; .)
 =
 	( "BYES"										(. qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
-	| "DIAF"										(. Warning("DIAF is deprecated. Use BYES instead."); qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
+	| "DIAF"										(. if(program.version == LOLCodeVersion.IRCSPECZ) Warning("DIAF is deprecated. Use BYES instead."); qs.code = new PrimitiveExpression(GetPragma(la), 0); .)
 	) [ Expression<out qs.code>
 	[ Expression<out qs.message>
 	] ]												(. SetEndPragma(stat); .)
@@ -252,7 +255,9 @@ Const<out object val>								(. val = null; .)
 =
 	intCon											(. val = int.Parse(t.val); .)
 	| stringCon										(. val = UnescapeString(t.val); .)
+	| "NOOB"										(. val = null; .)
 .
+
 LValue<out LValue lv>								(. lv = null; .)
 =
 	IF(!IsArrayIndex()) ident						(. ReferenceLocal(t.val); lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(lv); .)
@@ -260,9 +265,9 @@ LValue<out LValue lv>								(. lv = null; .)
 .
 
 ArrayIndex<out LValue lv>
-=													(. ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; .)
+=													(. ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; Object arg; .)
 	( ident											(. ReferenceLocal(t.val); alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); .)
-	| intCon										(. alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); .)
+	| Const<out arg>								(. alv.index = new PrimitiveExpression(GetPragma(t), arg); SetEndPragma(alv.index); .)
 	) "IN" "MAH" LValue<out alv.lval>				(. SetEndPragma(alv); .)
 .
 

@@ -19,8 +19,9 @@ internal partial class Parser {
 	const int _in = 7;
 	const int _im = 8;
 	const int _outta = 9;
-	const int maxT = 62;
-	const int _comment = 63;
+	const int maxT = 65;
+	const int _comment = 66;
+	const int _blockcomment = 67;
 
 	const bool T = true;
 	const bool x = false;
@@ -55,7 +56,9 @@ internal partial class Parser {
 			t = la;
 			la = scanner.Scan();
 			if (la.kind <= maxT) { ++errDist; break; }
-				if (la.kind == 63) {
+				if (la.kind == 66) {
+				}
+				if (la.kind == 67) {
 				}
 
 			la = t;
@@ -102,13 +105,16 @@ internal partial class Parser {
 			} else if (la.kind == 13) {
 				Get();
 				program.version = LOLCodeVersion.IRCSPECZ; 
-			} else SynErr(63);
+			} else if (la.kind == 14) {
+				Get();
+				program.version = LOLCodeVersion.v1_1; 
+			} else SynErr(66);
 		}
 		while (la.kind == 5) {
 			Get();
 		}
 		Statements(out program.methods["Main"].statements);
-		Expect(14);
+		Expect(15);
 		while (la.kind == 5) {
 			Get();
 		}
@@ -123,7 +129,7 @@ internal partial class Parser {
 			} else if (StartOf(1)) {
 				Statement(out s);
 				bs.statements.Add(s); 
-			} else SynErr(64);
+			} else SynErr(67);
 			while (la.kind == 5) {
 				Get();
 			}
@@ -132,23 +138,23 @@ internal partial class Parser {
 
 	void CanHasStatement() {
 		Expect(6);
-		Expect(15);
+		Expect(16);
 		if (la.kind == 4) {
 			Get();
 		} else if (la.kind == 1) {
 			Get();
-		} else SynErr(65);
-		Expect(16);
+		} else SynErr(68);
+		Expect(17);
 	}
 
 	void Statement(out Statement stat) {
 		stat = null; 
 		switch (la.kind) {
-		case 17: {
+		case 18: {
 			GimmehStatement(out stat);
 			break;
 		}
-		case 27: {
+		case 28: {
 			IHasAStatement(out stat);
 			break;
 		}
@@ -156,49 +162,49 @@ internal partial class Parser {
 			LoopStatement(out stat);
 			break;
 		}
-		case 21: case 22: {
+		case 22: case 23: {
 			BreakStatement(out stat);
 			break;
 		}
-		case 26: {
+		case 27: {
 			ContinueStatement(out stat);
 			break;
 		}
-		case 30: case 31: case 32: case 33: {
+		case 32: case 33: case 34: case 35: {
 			BinaryOpStatement(out stat);
 			break;
 		}
-		case 35: {
+		case 37: {
 			IzStatement(out stat);
 			break;
 		}
-		case 39: {
+		case 41: {
 			SwitchStatement(out stat);
 			break;
 		}
-		case 43: case 44: {
+		case 45: case 46: {
 			QuitStatement(out stat);
 			break;
 		}
-		case 47: {
+		case 49: {
 			AssignmentStatement(out stat);
 			break;
 		}
-		case 45: case 46: {
+		case 47: case 48: {
 			PrintStatement(out stat);
 			break;
 		}
-		default: SynErr(66); break;
+		default: SynErr(69); break;
 		}
 	}
 
 	void GimmehStatement(out Statement stat) {
 		InputStatement ins = new InputStatement(GetPragma(la)); stat = ins; 
-		Expect(17);
-		if (la.kind == 18 || la.kind == 19 || la.kind == 20) {
-			if (la.kind == 18) {
+		Expect(18);
+		if (la.kind == 19 || la.kind == 20 || la.kind == 21) {
+			if (la.kind == 19) {
 				Get();
-			} else if (la.kind == 19) {
+			} else if (la.kind == 20) {
 				Get();
 				ins.amount = IOAmount.Word; 
 			} else {
@@ -212,79 +218,83 @@ internal partial class Parser {
 
 	void IHasAStatement(out Statement stat) {
 		VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; 
-		Expect(27);
-		Expect(15);
 		Expect(28);
+		Expect(16);
+		Expect(29);
 		Expect(1);
 		vds.name = t.val; CreateLocal(vds.name); SetEndPragma(stat); 
+		if (la.kind == 30) {
+			Get();
+			Expression(out vds.expression);
+		}
 	}
 
 	void LoopStatement(out Statement stat) {
 		LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; 
 		Expect(8);
 		Expect(7);
-		if (la.kind == 24) {
+		if (la.kind == 25) {
 			Get();
-		} else if (la.kind == 25) {
+		} else if (la.kind == 26) {
 			Get();
-		} else SynErr(67);
+		} else SynErr(70);
 		Expect(1);
 		ls.name = t.val; SetEndPragma(stat); BeginScope(); 
 		while (la.kind == 5) {
 			Get();
 		}
 		Statements(out ls.statements);
-		if (la.kind == 29) {
+		if (la.kind == 31) {
 			Get();
-			Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); 
+			if(program.version == LOLCodeVersion.IRCSPECZ) Warning("KTHX as a loop terminator is deprecated in favor of 'IM OUTTA YR <label>'"); 
 		} else if (la.kind == 8) {
 			Get();
 			Expect(9);
-			if (la.kind == 24) {
+			if (la.kind == 25) {
 				Get();
-			} else if (la.kind == 25) {
+			} else if (la.kind == 26) {
 				Get();
-			} else SynErr(68);
+			} else SynErr(71);
 			Expect(1);
 			if(t.val != ls.name) Error("Loop terminator label does not match loop label"); 
-		} else SynErr(69);
+		} else SynErr(72);
 		EndScope(); 
 	}
 
 	void BreakStatement(out Statement stat) {
 		BreakStatement bs = new BreakStatement(GetPragma(la)); stat = bs; 
-		if (la.kind == 21) {
+		if (la.kind == 22) {
 			Get();
-			Warning("GTFO is deprecated in favor of ENUF"); 
-		} else if (la.kind == 22) {
+			if(program.version == LOLCodeVersion.IRCSPECZ) Warning("GTFO is deprecated in favor of ENUF"); 
+		} else if (la.kind == 23) {
 			Get();
-			if (la.kind == 1 || la.kind == 23) {
-				if (la.kind == 23) {
+			if (la.kind == 1 || la.kind == 24) {
+				if (la.kind == 24) {
 					Get();
-					if (la.kind == 24) {
+					if (la.kind == 25) {
 						Get();
-					} else if (la.kind == 25) {
+					} else if (la.kind == 26) {
 						Get();
-					} else SynErr(70);
+					} else SynErr(73);
 				}
 				Expect(1);
 				bs.label = t.val; 
 			}
-		} else SynErr(71);
+		} else SynErr(74);
 		SetEndPragma(stat); 
 	}
 
 	void ContinueStatement(out Statement stat) {
 		ContinueStatement cs = new ContinueStatement(GetPragma(la)); stat = cs; 
-		Expect(26);
-		if (la.kind == 1 || la.kind == 23) {
-			if (la.kind == 23) {
+		Expect(27);
+		if (la.kind == 1 || la.kind == 24) {
+			if (la.kind == 24) {
 				Get();
-				if (la.kind == 24) {
+				if (la.kind == 25) {
 					Get();
-				} else if (la.kind == 25) {
+				} else if (la.kind == 26) {
 					Get();
-				} else SynErr(72);
+				} else SynErr(75);
 			}
 			Expect(1);
 			cs.label = t.val; 
@@ -294,22 +304,22 @@ internal partial class Parser {
 
 	void BinaryOpStatement(out Statement stat) {
 		BinaryOpStatement bos = new BinaryOpStatement(GetPragma(la)); bos.amount = new PrimitiveExpression(GetPragma(la), 1); stat = bos; 
-		if (la.kind == 30) {
+		if (la.kind == 32) {
 			Get();
 			bos.op = OpCodes.Add; 
-		} else if (la.kind == 31) {
-			Get();
-			bos.op = OpCodes.Sub; 
-		} else if (la.kind == 32) {
-			Get();
-			bos.op = OpCodes.Mul; 
 		} else if (la.kind == 33) {
 			Get();
+			bos.op = OpCodes.Sub; 
+		} else if (la.kind == 34) {
+			Get();
+			bos.op = OpCodes.Mul; 
+		} else if (la.kind == 35) {
+			Get();
 			bos.op = OpCodes.Div; 
-		} else SynErr(73);
+		} else SynErr(76);
 		LValue(out bos.lval);
-		Expect(34);
-		if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
+		Expect(36);
+		if (StartOf(2)) {
 			Expression(out bos.amount);
 		}
 		SetEndPragma(stat); 
@@ -317,18 +327,18 @@ internal partial class Parser {
 
 	void IzStatement(out Statement stat) {
 		ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; ConditionalStatement cur = cs; Statement st; 
-		Expect(35);
+		Expect(37);
 		Expression(out cs.condition);
-		if (la.kind == 16) {
+		if (la.kind == 17) {
 			Get();
 		} else if (la.kind == 5) {
 			Get();
-		} else SynErr(74);
+		} else SynErr(77);
 		SetEndPragma(stat); 
 		while (la.kind == 5) {
 			Get();
 		}
-		if (la.kind == 36) {
+		if (la.kind == 38) {
 			Get();
 			while (la.kind == 5) {
 				Get();
@@ -337,14 +347,14 @@ internal partial class Parser {
 		BeginScope(); 
 		Statements(out cs.trueStatements);
 		EndScope(); 
-		while (la.kind == 37) {
+		while (la.kind == 39) {
 			Get();
-			if (la.kind == 35) {
+			if (la.kind == 37) {
 				Get();
 			}
 			cur.falseStatements = new ConditionalStatement(GetPragma(la)); cur = (ConditionalStatement)cur.falseStatements; 
 			Expression(out cur.condition);
-			Expect(16);
+			Expect(17);
 			while (la.kind == 5) {
 				Get();
 			}
@@ -352,7 +362,7 @@ internal partial class Parser {
 			Statements(out cur.trueStatements);
 			EndScope(); 
 		}
-		if (la.kind == 38) {
+		if (la.kind == 40) {
 			Get();
 			while (la.kind == 5) {
 				Get();
@@ -361,24 +371,24 @@ internal partial class Parser {
 			Statements(out cur.falseStatements);
 			EndScope(); 
 		}
-		Expect(29);
+		Expect(31);
 	}
 
 	void SwitchStatement(out Statement stat) {
 		SwitchStatement ss = new SwitchStatement(GetPragma(la)); stat = ss; Object label; Statement block; 
-		Expect(39);
-		if (la.kind == 35) {
+		Expect(41);
+		if (la.kind == 37) {
 			Get();
 		}
 		Expression(out ss.control);
-		Expect(16);
+		Expect(17);
 		while (la.kind == 5) {
 			Get();
 		}
-		while (la.kind == 40) {
+		while (la.kind == 42) {
 			Get();
 			Const(out label);
-			if (la.kind == 41) {
+			if (la.kind == 43) {
 				Get();
 			}
 			while (la.kind == 5) {
@@ -387,9 +397,9 @@ internal partial class Parser {
 			Statements(out block);
 			AddCase(ss, label, block); 
 		}
-		if (la.kind == 42) {
+		if (la.kind == 44) {
 			Get();
-			if (la.kind == 16) {
+			if (la.kind == 17) {
 				Get();
 			}
 			while (la.kind == 5) {
@@ -397,21 +407,21 @@ internal partial class Parser {
 			}
 			Statements(out ss.defaultCase);
 		}
-		Expect(29);
+		Expect(31);
 	}
 
 	void QuitStatement(out Statement stat) {
 		QuitStatement qs = new QuitStatement(GetPragma(la)); stat = qs; 
-		if (la.kind == 43) {
+		if (la.kind == 45) {
 			Get();
 			qs.code = new PrimitiveExpression(GetPragma(la), 0); 
-		} else if (la.kind == 44) {
+		} else if (la.kind == 46) {
 			Get();
-			Warning("DIAF is deprecated. Use BYES instead."); qs.code = new PrimitiveExpression(GetPragma(la), 0); 
-		} else SynErr(75);
-		if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
+			if(program.version == LOLCodeVersion.IRCSPECZ) Warning("DIAF is deprecated. Use BYES instead."); qs.code = new PrimitiveExpression(GetPragma(la), 0); 
+		} else SynErr(78);
+		if (StartOf(2)) {
 			Expression(out qs.code);
-			if (la.kind == 1 || la.kind == 2 || la.kind == 4) {
+			if (StartOf(2)) {
 				Expression(out qs.message);
 			}
 		}
@@ -420,23 +430,23 @@ internal partial class Parser {
 
 	void AssignmentStatement(out Statement stat) {
 		AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; 
-		Expect(47);
+		Expect(49);
 		LValue(out ass.lval);
-		Expect(48);
+		Expect(50);
 		Expression(out ass.rval);
 		SetEndPragma(stat); 
 	}
 
 	void PrintStatement(out Statement stat) {
 		PrintStatement ps = new PrintStatement(GetPragma(la)); stat = ps; 
-		if (la.kind == 45) {
+		if (la.kind == 47) {
 			Get();
-		} else if (la.kind == 46) {
+		} else if (la.kind == 48) {
 			Get();
 			ps.stderr = true; 
-		} else SynErr(76);
+		} else SynErr(79);
 		Expression(out ps.message);
-		if (la.kind == 41) {
+		if (la.kind == 43) {
 			Get();
 			ps.newline = false; 
 		}
@@ -448,9 +458,9 @@ internal partial class Parser {
 		if (!IsArrayIndex()) {
 			Expect(1);
 			ReferenceLocal(t.val); lv = new VariableLValue(GetPragma(t), t.val); SetEndPragma(lv); 
-		} else if (la.kind == 1 || la.kind == 2) {
+		} else if (StartOf(2)) {
 			ArrayIndex(out lv);
-		} else SynErr(77);
+		} else SynErr(80);
 	}
 
 	void Expression(out Expression exp) {
@@ -468,7 +478,10 @@ internal partial class Parser {
 		} else if (la.kind == 4) {
 			Get();
 			val = UnescapeString(t.val); 
-		} else SynErr(78);
+		} else if (la.kind == 63) {
+			Get();
+			val = null; 
+		} else SynErr(81);
 	}
 
 	void Unary(out Expression exp) {
@@ -476,16 +489,16 @@ internal partial class Parser {
 		if ((la.kind == _intCon || la.kind == _stringCon) && !IsArrayIndex()) {
 			Const(out val);
 			exp = new PrimitiveExpression(GetPragma(t), val); SetEndPragma(exp); 
-		} else if (la.kind == 1 || la.kind == 2) {
+		} else if (StartOf(2)) {
 			LValueExpression lve = new LValueExpression(GetPragma(la)); exp = lve; 
 			LValue(out lve.lval);
 			SetEndPragma(exp); 
-		} else SynErr(79);
+		} else SynErr(82);
 	}
 
 	void AndExpression(out Expression exp, Expression left) {
 		XorExpression(out exp, left);
-		while (la.kind == 49) {
+		while (la.kind == 51) {
 			Get();
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.And; ibs.left = exp; exp = ibs; 
 			Unary(out ibs.right);
@@ -496,7 +509,7 @@ internal partial class Parser {
 
 	void XorExpression(out Expression exp, Expression left) {
 		OrExpression(out exp, left);
-		while (la.kind == 50) {
+		while (la.kind == 52) {
 			Get();
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Xor; ibs.left = exp; exp = ibs; 
 			Unary(out ibs.right);
@@ -507,7 +520,7 @@ internal partial class Parser {
 
 	void OrExpression(out Expression exp, Expression left) {
 		ComparisonExpression(out exp, left);
-		while (la.kind == 51) {
+		while (la.kind == 53) {
 			Get();
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.op = OpCodes.Or; ibs.left = exp; exp = ibs; 
 			Unary(out ibs.right);
@@ -518,28 +531,28 @@ internal partial class Parser {
 
 	void ComparisonExpression(out Expression exp, Expression left) {
 		ArithmeticExpression(out exp, left);
-		while (StartOf(2)) {
+		while (StartOf(3)) {
 			ComparisonExpression ce = new ComparisonExpression(GetPragma(la)); ce.left = exp; exp = ce; 
-			if (la.kind == 52) {
+			if (la.kind == 54) {
 				Get();
 				ce.op |= ComparisonOperator.Not; 
 			}
-			if (la.kind == 53) {
+			if (la.kind == 55) {
 				Get();
 				ce.op |= ComparisonOperator.GreaterThan; 
-				if (la.kind == 54) {
+				if (la.kind == 56) {
 					Get();
 				}
-			} else if (la.kind == 55) {
+			} else if (la.kind == 57) {
 				Get();
 				ce.op |= ComparisonOperator.LessThan; 
-				if (la.kind == 54) {
+				if (la.kind == 56) {
 					Get();
 				}
-			} else if (la.kind == 56) {
+			} else if (la.kind == 58) {
 				Get();
 				ce.op |= ComparisonOperator.Equal; 
-			} else SynErr(80);
+			} else SynErr(83);
 			Unary(out ce.right);
 			ArithmeticExpression(out ce.right, ce.right);
 		}
@@ -548,9 +561,9 @@ internal partial class Parser {
 
 	void ArithmeticExpression(out Expression exp, Expression left) {
 		MultiplicationExpression(out exp, left);
-		while (la.kind == 57 || la.kind == 58) {
+		while (la.kind == 59 || la.kind == 60) {
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; 
-			if (la.kind == 57) {
+			if (la.kind == 59) {
 				Get();
 				ibs.op = OpCodes.Add; 
 			} else {
@@ -565,9 +578,9 @@ internal partial class Parser {
 
 	void MultiplicationExpression(out Expression exp, Expression left) {
 		exp = left; 
-		while (la.kind == 59 || la.kind == 60) {
+		while (la.kind == 61 || la.kind == 62) {
 			IntegerBinaryExpression ibs = new IntegerBinaryExpression(GetPragma(la)); ibs.left = exp; exp = ibs; 
-			if (la.kind == 59) {
+			if (la.kind == 61) {
 				Get();
 				ibs.op = OpCodes.Mul; 
 			} else {
@@ -580,16 +593,16 @@ internal partial class Parser {
 	}
 
 	void ArrayIndex(out LValue lv) {
-		ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; 
+		ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; Object arg; 
 		if (la.kind == 1) {
 			Get();
 			ReferenceLocal(t.val); alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); 
-		} else if (la.kind == 2) {
-			Get();
-			alv.index = new PrimitiveExpression(GetPragma(t), int.Parse(t.val)); SetEndPragma(alv.index); 
-		} else SynErr(81);
+		} else if (la.kind == 2 || la.kind == 4 || la.kind == 63) {
+			Const(out arg);
+			alv.index = new PrimitiveExpression(GetPragma(t), arg); SetEndPragma(alv.index); 
+		} else SynErr(84);
 		Expect(7);
-		Expect(61);
+		Expect(64);
 		LValue(out alv.lval);
 		SetEndPragma(alv); 
 	}
@@ -606,9 +619,10 @@ internal partial class Parser {
 	}
 	
 	bool[,] set = {
-		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
-		{x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,T,T,x, x,x,T,T, x,x,T,T, T,T,x,T, x,x,x,T, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,T, T,x,x,x, x,x,x,x}
+		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
+		{x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,T,x, x,x,T,T, x,x,x,T, T,x,x,x, T,T,T,T, x,T,x,x, x,T,x,x, x,T,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
+		{x,T,T,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, x,T,T,x, x,x,x,x, x,x,x}
 
 	};
 } // end Parser
@@ -636,78 +650,81 @@ public class Errors {
 			case 7: s = "in expected"; break;
 			case 8: s = "im expected"; break;
 			case 9: s = "outta expected"; break;
-			case 10: s = "\"hai\" expected"; break;
-			case 11: s = "\"to\" expected"; break;
+			case 10: s = "\"HAI\" expected"; break;
+			case 11: s = "\"TO\" expected"; break;
 			case 12: s = "\"1.0\" expected"; break;
-			case 13: s = "\"ircspecz\" expected"; break;
-			case 14: s = "\"kthxbye\" expected"; break;
-			case 15: s = "\"has\" expected"; break;
-			case 16: s = "\"?\" expected"; break;
-			case 17: s = "\"gimmeh\" expected"; break;
-			case 18: s = "\"line\" expected"; break;
-			case 19: s = "\"word\" expected"; break;
-			case 20: s = "\"lettar\" expected"; break;
-			case 21: s = "\"gtfo\" expected"; break;
-			case 22: s = "\"enuf\" expected"; break;
-			case 23: s = "\"ov\" expected"; break;
-			case 24: s = "\"yr\" expected"; break;
-			case 25: s = "\"ur\" expected"; break;
-			case 26: s = "\"moar\" expected"; break;
-			case 27: s = "\"i\" expected"; break;
-			case 28: s = "\"a\" expected"; break;
-			case 29: s = "\"kthx\" expected"; break;
-			case 30: s = "\"upz\" expected"; break;
-			case 31: s = "\"nerfz\" expected"; break;
-			case 32: s = "\"tiemzd\" expected"; break;
-			case 33: s = "\"ovarz\" expected"; break;
-			case 34: s = "\"!!\" expected"; break;
-			case 35: s = "\"iz\" expected"; break;
-			case 36: s = "\"yarly\" expected"; break;
-			case 37: s = "\"mebbe\" expected"; break;
-			case 38: s = "\"nowai\" expected"; break;
-			case 39: s = "\"wtf\" expected"; break;
-			case 40: s = "\"omg\" expected"; break;
-			case 41: s = "\"!\" expected"; break;
-			case 42: s = "\"omgwtf\" expected"; break;
-			case 43: s = "\"byes\" expected"; break;
-			case 44: s = "\"diaf\" expected"; break;
-			case 45: s = "\"visible\" expected"; break;
-			case 46: s = "\"invisible\" expected"; break;
-			case 47: s = "\"lol\" expected"; break;
-			case 48: s = "\"r\" expected"; break;
-			case 49: s = "\"and\" expected"; break;
-			case 50: s = "\"xor\" expected"; break;
-			case 51: s = "\"or\" expected"; break;
-			case 52: s = "\"not\" expected"; break;
-			case 53: s = "\"bigr\" expected"; break;
-			case 54: s = "\"than\" expected"; break;
-			case 55: s = "\"smalr\" expected"; break;
-			case 56: s = "\"liek\" expected"; break;
-			case 57: s = "\"up\" expected"; break;
-			case 58: s = "\"nerf\" expected"; break;
-			case 59: s = "\"tiemz\" expected"; break;
-			case 60: s = "\"ovar\" expected"; break;
-			case 61: s = "\"mah\" expected"; break;
-			case 62: s = "??? expected"; break;
-			case 63: s = "invalid LOLCode"; break;
-			case 64: s = "invalid Statements"; break;
-			case 65: s = "invalid CanHasStatement"; break;
-			case 66: s = "invalid Statement"; break;
-			case 67: s = "invalid LoopStatement"; break;
-			case 68: s = "invalid LoopStatement"; break;
-			case 69: s = "invalid LoopStatement"; break;
-			case 70: s = "invalid BreakStatement"; break;
-			case 71: s = "invalid BreakStatement"; break;
-			case 72: s = "invalid ContinueStatement"; break;
-			case 73: s = "invalid BinaryOpStatement"; break;
-			case 74: s = "invalid IzStatement"; break;
-			case 75: s = "invalid QuitStatement"; break;
-			case 76: s = "invalid PrintStatement"; break;
-			case 77: s = "invalid LValue"; break;
-			case 78: s = "invalid Const"; break;
-			case 79: s = "invalid Unary"; break;
-			case 80: s = "invalid ComparisonExpression"; break;
-			case 81: s = "invalid ArrayIndex"; break;
+			case 13: s = "\"IRCSPECZ\" expected"; break;
+			case 14: s = "\"1.1\" expected"; break;
+			case 15: s = "\"KTHXBYE\" expected"; break;
+			case 16: s = "\"HAS\" expected"; break;
+			case 17: s = "\"?\" expected"; break;
+			case 18: s = "\"GIMMEH\" expected"; break;
+			case 19: s = "\"LINE\" expected"; break;
+			case 20: s = "\"WORD\" expected"; break;
+			case 21: s = "\"LETTAR\" expected"; break;
+			case 22: s = "\"GTFO\" expected"; break;
+			case 23: s = "\"ENUF\" expected"; break;
+			case 24: s = "\"OV\" expected"; break;
+			case 25: s = "\"YR\" expected"; break;
+			case 26: s = "\"UR\" expected"; break;
+			case 27: s = "\"MOAR\" expected"; break;
+			case 28: s = "\"I\" expected"; break;
+			case 29: s = "\"A\" expected"; break;
+			case 30: s = "\"ITZ\" expected"; break;
+			case 31: s = "\"KTHX\" expected"; break;
+			case 32: s = "\"UPZ\" expected"; break;
+			case 33: s = "\"NERFZ\" expected"; break;
+			case 34: s = "\"TIEMZD\" expected"; break;
+			case 35: s = "\"OVARZ\" expected"; break;
+			case 36: s = "\"!!\" expected"; break;
+			case 37: s = "\"IZ\" expected"; break;
+			case 38: s = "\"YARLY\" expected"; break;
+			case 39: s = "\"MEBBE\" expected"; break;
+			case 40: s = "\"NOWAI\" expected"; break;
+			case 41: s = "\"WTF\" expected"; break;
+			case 42: s = "\"OMG\" expected"; break;
+			case 43: s = "\"!\" expected"; break;
+			case 44: s = "\"OMGWTF\" expected"; break;
+			case 45: s = "\"BYES\" expected"; break;
+			case 46: s = "\"DIAF\" expected"; break;
+			case 47: s = "\"VISIBLE\" expected"; break;
+			case 48: s = "\"INVISIBLE\" expected"; break;
+			case 49: s = "\"LOL\" expected"; break;
+			case 50: s = "\"R\" expected"; break;
+			case 51: s = "\"AND\" expected"; break;
+			case 52: s = "\"XOR\" expected"; break;
+			case 53: s = "\"OR\" expected"; break;
+			case 54: s = "\"NOT\" expected"; break;
+			case 55: s = "\"BIGR\" expected"; break;
+			case 56: s = "\"THAN\" expected"; break;
+			case 57: s = "\"SMALR\" expected"; break;
+			case 58: s = "\"LIEK\" expected"; break;
+			case 59: s = "\"UP\" expected"; break;
+			case 60: s = "\"NERF\" expected"; break;
+			case 61: s = "\"TIEMZ\" expected"; break;
+			case 62: s = "\"OVAR\" expected"; break;
+			case 63: s = "\"NOOB\" expected"; break;
+			case 64: s = "\"MAH\" expected"; break;
+			case 65: s = "??? expected"; break;
+			case 66: s = "invalid LOLCode"; break;
+			case 67: s = "invalid Statements"; break;
+			case 68: s = "invalid CanHasStatement"; break;
+			case 69: s = "invalid Statement"; break;
+			case 70: s = "invalid LoopStatement"; break;
+			case 71: s = "invalid LoopStatement"; break;
+			case 72: s = "invalid LoopStatement"; break;
+			case 73: s = "invalid BreakStatement"; break;
+			case 74: s = "invalid BreakStatement"; break;
+			case 75: s = "invalid ContinueStatement"; break;
+			case 76: s = "invalid BinaryOpStatement"; break;
+			case 77: s = "invalid IzStatement"; break;
+			case 78: s = "invalid QuitStatement"; break;
+			case 79: s = "invalid PrintStatement"; break;
+			case 80: s = "invalid LValue"; break;
+			case 81: s = "invalid Const"; break;
+			case 82: s = "invalid Unary"; break;
+			case 83: s = "invalid ComparisonExpression"; break;
+			case 84: s = "invalid ArrayIndex"; break;
 
 			default: s = "error " + n; break;
 		}

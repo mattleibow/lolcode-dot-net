@@ -265,10 +265,16 @@ namespace notdot.LOLCode
     internal class VariableDeclarationStatement : Statement
     {
         public string name;
+        public Expression expression = null;
 
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
-            lm.CreateLocal(name, gen);
+            LocalBuilder local = lm.CreateLocal(name, gen);
+            if (expression != null)
+            {
+                expression.Emit(lm, gen);
+                gen.Emit(OpCodes.Stloc, local);
+            }
         }
 
         public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)

@@ -32,8 +32,8 @@ namespace notdot.LOLCode.stdlol
 
         public static int CompareObjects(object a, object b)
         {
-            if (a is string && b is string)
-                return string.Compare(a as string, b as string);
+            if (a is string || b is string)
+                return string.Compare(a.ToString(), b.ToString());
             if (a is int && b is int)
                 return ((int)a) - ((int)b);
             throw new InvalidOperationException(string.Format("Cannot compare types {0} and {1}.", a.GetType().Name, b.GetType().Name));
@@ -106,9 +106,8 @@ namespace notdot.LOLCode.stdlol
                 return "";
             if (obj is Dictionary<object, object>)
                 return ToString(GetObject(obj as Dictionary<object,object>, 0));
-            //Removed for now in favor of making VISIBLE recognise expression type
-            //if (obj is int)
-            //    return ((int)obj).ToString();
+            if (obj is int)
+                return ((int)obj).ToString();
 
             throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to string", obj.GetType().Name));
         }
@@ -121,6 +120,13 @@ namespace notdot.LOLCode.stdlol
                 return 0;
             if (obj is Dictionary<object, object>)
                 return ToInt(GetObject(obj as Dictionary<object, object>, 0));
+            if (obj is string)
+            {
+                int val;
+                if (!int.TryParse(obj as string, out val))
+                    return 0;
+                return val;
+            }
 
             throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to int", obj.GetType().Name));
         }
