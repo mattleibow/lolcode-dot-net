@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using NUnit.Core;
 using NUnit.Framework;
-using notdot.LOLCode.stdlol;
+using stdlol;
 
 namespace LOLCode.net.Tests.stdlol
 {
@@ -18,82 +18,6 @@ namespace LOLCode.net.Tests.stdlol
     {
 
         //TODO: ReadWord, GetDict, GetObject 
-
-        #region "CompareObjects Tests"
-        
-        [Test] 
-        public void CompareObjectsIntSimple()
-        {
-            // Less than
-            Assert.AreEqual(Utils.CompareObjects(1, 2), -1);
-
-            // Greater than
-            Assert.AreEqual(Utils.CompareObjects(2, 1), 1);
-
-            // Same
-            Assert.AreEqual(Utils.CompareObjects(1, 1), 0);
-        }
-
-        [Test]
-        public void CompareObjectsStringSimple()
-        {
-            string a = "hello";
-            string b = "world"; 
-
-            // Less than
-            Assert.AreEqual(Utils.CompareObjects(a, b), -1);
-
-            // Greater than
-            Assert.AreEqual(Utils.CompareObjects(b, a), 1);
-
-            // Same
-            Assert.AreEqual(Utils.CompareObjects(a, a), 0);
-
-            // Same
-            Assert.AreEqual(Utils.CompareObjects(b, b), 0);
-        }
-
-        [Test]
-        [ExpectedException(typeof(InvalidOperationException),
-           ExpectedMessage = "Cannot compare types Guid and Guid.")]
-        public void CompareObjectsInvalidStruct()
-        {
-            Guid a = Guid.NewGuid();
-            Guid b = Guid.NewGuid();
-            Utils.CompareObjects(a, b); 
-        }
-
-        [Test]
-        [ExpectedException(typeof(InvalidOperationException),
-           ExpectedMessage = "Cannot compare types Single and Single.")]
-        public void CompareObjectsInvalidValueType()
-        {
-            float a = 0.1f;
-            float b = 0.2f;
-            Utils.CompareObjects(a, b);
-        }
-
-        [Test]
-        [ExpectedException(typeof(InvalidOperationException),
-           ExpectedMessage = "Cannot compare types Object and Object.")]
-        public void CompareObjectsInvalidObject()
-        {
-            object a = new object();
-            object b = new object(); 
-            Utils.CompareObjects(a, b);
-        }
-
-        [Test]
-        [ExpectedException(typeof(InvalidOperationException),
-           ExpectedMessage = "Cannot compare types Int32 and String.")]
-        public void CompareObjectsInvalidValidMixed()
-        {
-            int a = 1;
-            string b = "O RLY?";
-            Utils.CompareObjects(a, b);
-        }
-
-        #endregion
 
         #region "ToString Tests"
         //Note: Stubbed out because automatic casting of ints to strings has been
@@ -217,7 +141,7 @@ namespace LOLCode.net.Tests.stdlol
         #endregion
 
         #region "ToDict Tests"
-
+        /*
         [Test]
         public void ToDictDictionary()
         {
@@ -283,7 +207,7 @@ namespace LOLCode.net.Tests.stdlol
             object value = Guid.NewGuid() as object;
             Utils.ToDict(ref value);
         }
-
+        */
         #endregion
 
     }

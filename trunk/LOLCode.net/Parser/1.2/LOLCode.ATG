@@ -1,0 +1,225 @@
+using System.Collections.Generic;
+using System.Reflection.Emit;
+using System.Text;
+
+COMPILER LOLCode
+
+CHARACTERS
+	tab					= '\u0009'.
+	eol					= '\u000a'.
+	noteol				= ANY - eol.
+	cr					= '\u000d'.
+	newLine				= cr + eol.
+	
+	startLetter			= 'A' .. 'Z'.
+	partLetter			= '0' .. '9' + 'A' .. 'Z' + '_'.
+	
+	digit				= "0123456789".
+	hexDigit			= digit + "ABCDEFabcdef".	
+	notDigit			= ANY - digit.
+	
+	regularStringChar	= ANY - '"' - ':' - newLine.
+	ws					= " " + tab + '\u000b' + '\u000c'.
+	
+	notTLDR				= ANY - 'T' - 'L' - 'D' - 'R'.
+
+TOKENS
+	ident				= startLetter { partLetter }.
+	intCon				= digit { digit }.
+	realCon				= "." digit {digit} 
+						  [("e" | "E") ["+" | "-"] digit {digit}] 
+						| digit {digit} 
+						  ( "." digit {digit} 
+						    [("e" | "E" ) ["+" | "-"] digit {digit} ] 
+						    | ("e" | "E") ["+" | "-"] digit {digit}
+						  ).
+	stringCon			= "\""  { regularStringChar
+							| ":)" | ":>" | ":o" | ":\"" | "::"
+							| ":(" hexDigit [hexDigit] [hexDigit] [hexDigit] ")"
+							| ":{" startLetter { partLetter } "}"
+							| ":[" regularStringChar { regularStringChar } "]"
+							} "\"".
+	eos					= eol | "." | ",".
+	
+	can					= "CAN".
+	in					= "IN".
+	im					= "IM".
+	outta				= "OUTTA".
+	mkay				= "MKAY".
+	
+PRAGMAS
+	comment				= "BTW" { noteol } CONTEXT (eol).
+	blockcomment		= "OBTW" ws { 'L' | 'D' | 'R' | notTLDR | 'T' ( 'T' | 'D' | 'R' | notTLDR | 'L' ( 'T' | 'L' | 'R' | notTLDR | 'D' ( 'T' | 'L' | 'D' | notTLDR ) ) ) } 'T' 'L' 'D' 'R'.
+	continuation		= ( "..." | "\u2026" ) { noteol } eol.
+IGNORE tab + cr
+
+PRODUCTIONS
+LOLCode
+=
+	"HAI" [ "TO" ("1.2"								(. program.version = LOLCodeVersion.v1_2; .)
+	) ] { eos }
+	Statements<out program.methods["Main"].statements>
+	"KTHXBYE" { eos }
+.
+
+Statements<.out Statement stat.>					(. BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; .)
+=													(. Statement s; .)
+	{ IF((StartOf(1) || la.kind == _can) && scanner.Peek().kind != _outta) 
+	( CanHasStatement | Statement<out s>			(. bs.statements.Add(s); .)
+	  ) { eos } }
+.
+
+Statement<out Statement stat>						(. stat = null; .)
+=
+	IHasAStatement<out stat>
+	| AssignmentStatement<out stat>
+	| GimmehStatement<out stat>
+	| LoopStatement<out stat>
+	| BreakStatement<out stat>
+	| ContinueStatement<out stat>
+	| OrlyStatement<out stat>
+	| SwitchStatement<out stat>
+	| PrintStatement<out stat>
+.
+
+IHasAStatement<out Statement stat>
+=													(. VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; .)
+	"I" "HAS" "A" ident								(. vds.var = DeclareVariable(t.val); SetEndPragma(stat); .)
+	[ "ITZ" Expression<out vds.expression> ]
+.
+
+AssignmentStatement<out Statement stat>
+=													(. AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; .)
+	LValue<out ass.lval> 
+	"R" Expression<out ass.rval>					(. SetEndPragma(stat); .)
+.
+
+CanHasStatement
+=													(. StringBuilder sb = new StringBuilder(); .)
+	"CAN" "HAS" ( ident								(. sb.Append(t.val); .)
+	{ "." ident										(. sb.Append('.'); sb.Append(t.val); .)
+	} ) "?"											(. if(!program.ImportLibrary(sb.ToString())) Error(string.Format("Library \"{0}\" not found.", sb.ToString())); .)
+.
+
+GimmehStatement<out Statement stat>
+=													(. InputStatement ins = new InputStatement(GetPragma(la)); stat = ins; .)
+	"GIMMEH" [ "LINE" | "WORD"						(. ins.amount = IOAmount.Word; .)
+	| "LETTAR"										(. ins.amount = IOAmount.Letter; .)
+	] LValue<out ins.dest>							(. SetEndPragma(stat); .)
+.
+
+BreakStatement<out Statement stat>
+=													(. BreakStatement bs = new BreakStatement(GetPragma(la)); stat = bs; .)
+	"GTFO" [ ident									(. bs.label = t.val; .)
+	] eos											(. SetEndPragma(stat); .)
+.
+
+ContinueStatement<out Statement stat>
+=													(. ContinueStatement cs = new ContinueStatement(GetPragma(la)); stat = cs; .)
+	"MOAR" [ ident									(. cs.label = t.val; .)
+	] eos											(. SetEndPragma(stat); .)
+.
+
+LoopStatement<out Statement stat>
+=													(. LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; .)
+	"IM" "IN" ("YR"|"UR") ident						(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
+	[ ident											(. ls.operation = GetFunction(t.val); .)
+	"YR" ident										(. ls.loopvar = CreateLoopVariable(t.val); .)
+	[ "TIL"											(. ls.type = LoopType.Until; .)
+	| "WILE"										(. ls.type = LoopType.While; .)
+	Expression<out ls.condition> ] ]
+	eos { eos }
+	Statements<out ls.statements>
+	"IM" "OUTTA" ("YR"|"UR") ident					(. RemoveLoopVariable(ls.loopvar); if(t.val != ls.name) Error("Loop terminator label does not match loop label"); EndScope(); .)
+.
+
+OrlyStatement<out Statement stat>
+=													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; ConditionalStatement cur = cs; Statement st; Expression e; cs.condition = new VariableLValue(GetPragma(la), GetVariable("IT")); .)
+	"O" "RLY" "?" { eos }
+		[ "YA" "RLY" { eos } ]						(. BeginScope(); .)
+		Statements<out cs.trueStatements>			(. EndScope(); .)
+		{ "MEBBE"									(. cur.falseStatements = new ConditionalStatement(GetPragma(la)); .)
+		Expression<out e> { eos } 					(. (cur.falseStatements as ConditionalStatement).condition = e; cur = (ConditionalStatement)cur.falseStatements; BeginScope(); .)
+		Statements<out cur.trueStatements>			(. EndScope(); .)
+		}
+		[ "NO" "WAI" { eos }						(. BeginScope(); .)
+		  Statements<out cur.falseStatements>		(. EndScope(); .)
+		]
+	"OIC"
+.
+
+SwitchStatement<out Statement stat>
+=													(. SwitchStatement ss = new SwitchStatement(GetPragma(la)); ss.control = new VariableLValue(GetPragma(la), GetVariable("IT")); stat = ss; Object label; Statement block; .)
+	"WTF" "?" { eos }
+	{ 
+		"OMG" Const<out label> { eos }
+		Statements<out block>						(. AddCase(ss, label, block); .)
+	}
+	[
+		"OMGWTF" { eos }
+		Statements<out ss.defaultCase>
+	]
+	"KTHX"
+.
+
+PrintStatement<out Statement stat>					(. PrintStatement ps = new PrintStatement(GetPragma(la)); ps.message = new FunctionExpression(GetPragma(la), GetFunction("SMOOSH")); stat = ps; Expression e;.)
+=
+	( "VISIBLE" | "INVISIBLE"						(. ps.stderr = true; .)
+	) { Expression<out e>							(. (ps.message as FunctionExpression).arguments.Add(e); .)
+	} [ "!"											(. ps.newline = false; .)
+	] eos											(. SetEndPragma(stat); .)
+.
+
+Expression<out Expression exp>						(. exp = null; .)
+=
+	IF(IsFunction(la.val)) FunctionExpression<out exp>
+	| Unary<out exp>
+.
+
+FunctionExpression<out Expression exp>				(. FunctionExpression fe = new FunctionExpression(GetPragma(la)); exp = fe; Expression e2; .)
+=
+	ident											(. fe.func = GetFunction(t.val); int argsLeft = fe.func.Arity; .)
+	[ "OF" ]
+	[ IF(argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay))
+	  Expression<out e2>							(. fe.arguments.Add(e2); argsLeft--; .)
+	  { IF(argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) 
+	    [ "AN" ] Expression<out e2>					(. fe.arguments.Add(e2); argsLeft--; .)
+	} ] [ IF(fe.func.IsVariadic) mkay ]
+.
+
+Unary<out Expression exp>							(. exp = null; Object val; LValue lv; .)
+=
+/*	IF((la.kind == _intCon) && !IsArrayIndex()) */
+	Const<out val>									(. exp = new PrimitiveExpression(GetPragma(t), val); SetEndPragma(exp); .)
+	| StringExpression<out exp>
+	| LValue<out lv>								(. exp = lv; SetEndPragma(exp); .)
+.
+
+Const<out object val>								(. val = null; .)
+=
+	intCon											(. val = int.Parse(t.val); .)
+	| realCon										(. val = float.Parse(t.val); .)
+	| "NOOB"										(. val = null; .)
+	| "WIN"											(. val = true; .)
+	| "FAIL"										(. val = false; .)
+.
+
+StringExpression<out Expression exp>
+=
+	stringCon										(. exp = new StringExpression(GetPragma(t), t.val, GetScope(), errors); SetEndPragma(exp); .)
+.
+
+LValue<out LValue lv>								(. lv = null; .)
+=
+	/*IF(!IsArrayIndex())*/ ident						(. lv = new VariableLValue(GetPragma(t), GetVariable(t.val)); SetEndPragma(lv); .)
+	/*| ArrayIndex<out lv>*/
+.
+
+/*ArrayIndex<out LValue lv>
+=													(. ArrayIndexLValue alv = new ArrayIndexLValue(GetPragma(la)); lv = alv; Object arg; .)
+	( ident											(. ReferenceLocal(t.val); alv.index = new LValueExpression(GetPragma(t), new VariableLValue(GetPragma(t), t.val)); SetEndPragma(alv.index); .)
+	| Const<out arg>								(. alv.index = new PrimitiveExpression(GetPragma(t), arg); SetEndPragma(alv.index); .)
+	) "IN" "MAH" LValue<out alv.lval>				(. SetEndPragma(alv); .)
+.*/
+
+END LOLCode.

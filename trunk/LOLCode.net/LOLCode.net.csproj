@@ -39,22 +39,31 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="LOLTree.cs" />
-    <Compile Include="Parser.cs" />
-    <Compile Include="Parser.user.cs" />
+    <Compile Include="Parser\1.2\Parser.cs" />
+    <Compile Include="Parser\1.2\Parser.user.cs" />
+    <Compile Include="Parser\1.2\Scanner.cs" />
+    <Compile Include="Parser\Pass1\Parser.cs" />
+    <Compile Include="Parser\Pass1\Parser.user.cs" />
+    <Compile Include="Parser\Pass1\Scanner.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Scanner.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="LOLCode.ATG" />
-    <None Include="Parser.frame" />
-    <None Include="Scanner.frame" />
+    <Compile Include="SymbolTable.cs" />
+    <Compile Include="UnicodeNameLookup.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\stdlol\stdlol.csproj">
       <Project>{AD2F084A-C2C4-4BD5-89CA-EB656B6415BC}</Project>
       <Name>stdlol</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Parser\1.2\LOLCode.ATG" />
+    <None Include="Parser\1.2\Parser.frame" />
+    <None Include="Parser\1.2\Scanner.frame" />
+    <None Include="Parser\Pass1\LOLCode.ATG" />
+    <None Include="Parser\Pass1\Parser.frame" />
+    <None Include="Parser\Pass1\Scanner.frame" />
+    <EmbeddedResource Include="UnicodeNames.dat" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
