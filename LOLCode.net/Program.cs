@@ -9,29 +9,52 @@ namespace notdot.LOLCode
     {
         v1_0,
         v1_1,
+        v1_2,
         IRCSPECZ
     }
 
     internal class LOLProgram
     {
-        public LOLCodeVersion version = LOLCodeVersion.IRCSPECZ;
+        public LOLCodeVersion version = LOLCodeVersion.v1_2;
         public CompilerParameters compileropts;
+        public Scope globals = new Scope();
         public Dictionary<string, LOLMethod> methods = new Dictionary<string, LOLMethod>();
+        public List<Assembly> assemblies = new List<Assembly>();
 
         public LOLProgram(CompilerParameters opts)
         {
             this.compileropts = opts;
-            methods.Add("Main", new LOLMethod("Main", this));
+            
+            UserFunctionRef mainRef = new UserFunctionRef("Main", 0, false);
+            mainRef.ReturnType = typeof(void);
+            globals.AddSymbol(mainRef);
+            methods.Add("Main", new LOLMethod(mainRef, this));
+
+            assemblies.Add(Assembly.GetAssembly(typeof(stdlol.core)));
+            ImportLibrary("stdlol.core");
         }
 
         public MethodInfo Emit(CompilerErrorCollection errors, ModuleBuilder mb)
         { 
             TypeBuilder cls = mb.DefineType(compileropts.MainClass);
 
-            foreach(LOLMethod method in methods.Values)
-                method.Emit(errors, cls);
+            //Define methods
+            foreach (LOLMethod method in methods.Values)
+                (globals[method.info.Name] as UserFunctionRef).Builder = cls.DefineMethod(method.info.Name, MethodAttributes.Public | MethodAttributes.Static, method.info.ReturnType, method.info.ArgumentTypes);
 
+            //Define globals
+            foreach (SymbolRef sr in globals)
+                if (sr is GlobalRef)
+                    (sr as GlobalRef).Field = cls.DefineField(sr.Name, (sr as GlobalRef).Type, FieldAttributes.Static | FieldAttributes.Public);
+
+            //Emit methods
+            foreach (LOLMethod method in methods.Values)
+                method.Emit(errors, (globals[method.info.Name] as UserFunctionRef).Builder);
+
+            //Create type
             Type t = cls.CreateType();
+
+            //Return main
             return t.GetMethod("Main");
         }
 
@@ -48,54 +71,55 @@ namespace notdot.LOLCode
                 gen.Emit(OpCodes.Newobj, typeof(Dictionary<object, object>).GetConstructor(new Type[] { typeof(Dictionary<object, object>) }));
             }
         }
+
+        public bool ImportLibrary(string name)
+        {
+            Type t = null;
+            foreach (Assembly a in assemblies)
+            {
+                t = a.GetType(name);
+                if (t != null)
+                    break;
+            }
+
+            if (t == null)
+                return false;
+
+            foreach (MethodInfo mi in t.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                object[] attribs = mi.GetCustomAttributes(typeof(stdlol.LOLCodeFunctionAttribute), true);
+                for (int i = 0; i < attribs.Length; i++)
+                {
+                    stdlol.LOLCodeFunctionAttribute attrib = attribs[i] as stdlol.LOLCodeFunctionAttribute;
+                    globals.AddSymbol(new ImportFunctionRef(mi, attrib.Name != null ? attrib.Name : mi.Name));
+                }
+            }
+
+            return true;
+        }
     }
 
     internal class LOLMethod
     {
-        public string name;
+        public FunctionRef info;
         public LOLProgram program;
         public Statement statements;
         public List<BreakableStatement> breakables = new List<BreakableStatement>();
-        private List<Dictionary<string, LocalBuilder>> locals = new List<Dictionary<string, LocalBuilder>>();
+        public Scope locals;
         private Dictionary<Type, Stack<LocalBuilder>> tempLocals = new Dictionary<Type, Stack<LocalBuilder>>();
 
-        public LOLMethod(string name, LOLProgram prog)
+        public LOLMethod(FunctionRef info, LOLProgram prog)
         {
-            this.name = name;
+            this.info = info;
             this.program = prog;
+            this.locals = new Scope(prog.globals);
         }
 
-        public void BeginScope(ILGenerator gen)
+        public void DefineLocal(ILGenerator gen, LocalRef l)
         {
-            gen.BeginScope();
-            locals.Add(new Dictionary<string, LocalBuilder>());
-        }
-
-        public void EndScope(ILGenerator gen)
-        {
-            locals.RemoveAt(locals.Count - 1);
-            gen.EndScope();
-        }
-
-        public LocalBuilder CreateLocal(string name, ILGenerator gen)
-        {
-            LocalBuilder ret = gen.DeclareLocal(typeof(object));
+            l.Local = gen.DeclareLocal(l.Type);
             if (program.compileropts.IncludeDebugInformation)
-                ret.SetLocalSymInfo(name);
-            locals[locals.Count - 1].Add(name, ret);
-
-            return ret;
-        }
-
-        public LocalBuilder GetLocal(string name)
-        {
-            LocalBuilder ret;
-
-            for (int i = locals.Count - 1; i >= 0; i--)
-                if (locals[i].TryGetValue(name, out ret))
-                    return ret;
-
-            throw new KeyNotFoundException();
+                l.Local.SetLocalSymInfo(l.Name);
         }
 
         public LocalBuilder GetTempLocal(ILGenerator gen, Type t)
@@ -123,21 +147,15 @@ namespace notdot.LOLCode
             temps.Push(lb);
         }
 
-        public void Emit(CompilerErrorCollection errors, TypeBuilder cls)
+        public void Emit(CompilerErrorCollection errors, MethodBuilder m)
         {
-            MethodBuilder m = cls.DefineMethod(name, MethodAttributes.Public | MethodAttributes.Static, typeof(int), new Type[] { });
             ILGenerator gen = m.GetILGenerator();
-
-            statements.Process(this, errors, gen);
-
-            BeginScope(gen);
+            
+            LocalRef it = new LocalRef("IT");
+            locals.AddSymbol(it);
+            DefineLocal(gen, it);
 
             statements.Emit(this, gen);
-
-            gen.Emit(OpCodes.Ldc_I4_0);
-            gen.Emit(OpCodes.Ret);
-
-            EndScope(gen);
         }
     }
 }

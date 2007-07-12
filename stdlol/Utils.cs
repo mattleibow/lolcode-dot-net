@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace notdot.LOLCode.stdlol
+namespace stdlol
 {
     public abstract class Utils
     {
@@ -30,23 +30,27 @@ namespace notdot.LOLCode.stdlol
             }
         }
 
-        public static int CompareObjects(object a, object b)
+        private static bool ToBool(object b)
         {
-            if (a is string || b is string)
-                return string.Compare(a.ToString(), b.ToString());
-            if (a is int && b is int)
-                return ((int)a) - ((int)b);
-            throw new InvalidOperationException(string.Format("Cannot compare types {0} and {1}.", a.GetType().Name, b.GetType().Name));
+            if (b == null)
+                return false;
+            if (b is int && ((int)b) == 0)
+                return false;
+            if (b is float && ((float)b) == 0)
+                return false;
+            if (b is string && ((string)b) == "")
+                return false;
+            return true;
         }
 
-        public static object GetObject(Dictionary<object, object> dict, object key)
+        /*public static object GetObject(Dictionary<object, object> dict, object key)
         {
             object ret;
             dict.TryGetValue(key, out ret);
             return ret;
         }
 
-        public static Dictionary<object,object> GetDict(Dictionary<object, object> dict, object key)
+        public static Dictionary<object, object> GetDict(Dictionary<object, object> dict, object key)
         {
             object obj;
             Dictionary<object, object> ret;
@@ -64,7 +68,7 @@ namespace notdot.LOLCode.stdlol
                 dict[key] = ret;
                 return ret;
             }
-            else if (obj is string || obj is int)
+            else if (obj is string || obj is int || obj is float || obj is bool)
             {
                 ret = new Dictionary<object, object>();
                 ret[0] = obj;
@@ -72,7 +76,7 @@ namespace notdot.LOLCode.stdlol
                 return ret;
             }
 
-            throw new InvalidCastException(string.Format("Unknown type \"{0}\"", obj.GetType().Name));            
+            throw new InvalidCastException(string.Format("Unknown type \"{0}\"", obj.GetType().Name));
         }
 
         public static Dictionary<object, object> ToDict(ref object obj)
@@ -82,12 +86,14 @@ namespace notdot.LOLCode.stdlol
             if (obj is Dictionary<object, object>)
             {
                 return obj as Dictionary<object, object>;
-            } else if (obj == null)
+            }
+            else if (obj == null)
             {
                 ret = new Dictionary<object, object>();
                 obj = ret;
                 return ret;
-            } else if (obj is string || obj is int)
+            }
+            else if (obj is string || obj is int || obj is float || obj is bool)
             {
                 ret = new Dictionary<object, object>();
                 ret[0] = obj;
@@ -96,39 +102,57 @@ namespace notdot.LOLCode.stdlol
             }
 
             throw new InvalidCastException(string.Format("Unknown type \"{0}\"", obj.GetType().Name));
-        }
+        }*/
 
         public static string ToString(object obj)
         {
-            if (obj is string)
-                return obj as string;
-            if (obj == null)
-                return "";
-            if (obj is Dictionary<object, object>)
-                return ToString(GetObject(obj as Dictionary<object,object>, 0));
-            if (obj is int)
-                return ((int)obj).ToString();
-
-            throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to string", obj.GetType().Name));
+            if(obj == null)
+                throw new InvalidCastException("Cannot cast NOOB to string");
+            /*if (obj is Dictionary<object, object>)
+                return ToString(GetObject(obj as Dictionary<object, object>, 0));*/
+            return obj.ToString();
         }
 
         public static int ToInt(object obj)
         {
             if (obj is int)
                 return (int)obj;
-            if (obj == null)
-                return 0;
-            if (obj is Dictionary<object, object>)
-                return ToInt(GetObject(obj as Dictionary<object, object>, 0));
+            if (obj is float)
+                return (int)(float)obj;
+            if (obj is bool)
+                return ((bool)obj) ? 1 : 0;
+            /*if (obj is Dictionary<object, object>)
+                return ToInt(GetObject(obj as Dictionary<object, object>, 0));*/
             if (obj is string)
             {
                 int val;
                 if (!int.TryParse(obj as string, out val))
-                    return 0;
+                    throw new InvalidCastException("Cannot cast non-numeric YARN to NUMBR");
                 return val;
             }
 
-            throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to int", obj.GetType().Name));
+            throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to NUMBR", obj.GetType().Name));
+        }
+
+        public static float ToFloat(object obj)
+        {
+            if (obj is int)
+                return (int)obj;
+            if (obj is float)
+                return (float)obj;
+            if (obj is bool)
+                return ((bool)obj) ? 1 : 0;
+            /*if (obj is Dictionary<object, object>)
+                return ToInt(GetObject(obj as Dictionary<object, object>, 0));*/
+            if (obj is string)
+            {
+                float val;
+                if (!float.TryParse(obj as string, out val))
+                    throw new InvalidCastException("Cannot cast non-numeric YARN to NUMBAR");
+                return val;
+            }
+
+            throw new InvalidCastException(string.Format("Cannot cast type \"{0}\" to NUMBAR", obj.GetType().Name));
         }
 
         public static void PrintObject(TextWriter writer, object obj, bool newline)

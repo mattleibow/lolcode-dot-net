@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using System.Diagnostics.SymbolStore;
-using notdot.LOLCode.stdlol;
+using stdlol;
 using System.Reflection;
 using System.IO;
 using System.CodeDom.Compiler;
+using System.Text;
+using notdot.LOLCode.Parser.v1_2;
 
 namespace notdot.LOLCode
 {
@@ -71,15 +73,56 @@ namespace notdot.LOLCode
         }
 
         public Expression(CodePragma loc) : base(loc) { }
+
+        public static void EmitCast(ILGenerator gen, Type from, Type  to) {
+            if (from == to) {
+                return;
+            }
+            else if (to == typeof(object))
+            {
+                if (from.IsValueType)
+                {
+                    gen.Emit(OpCodes.Box, from);
+                }
+            }
+            else if (from == typeof(object))
+            {
+                if (to == typeof(int))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToInt", BindingFlags.Public | BindingFlags.Static), null);
+                }
+                else if (to == typeof(float))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToFloat", BindingFlags.Public | BindingFlags.Static), null);
+                }
+                else if (to == typeof(string))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
+                }
+                else
+                {
+                    throw new InvalidOperationException(string.Format("Unknown cast: From {0} to {1}", from.Name, to.Name));
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException(string.Format("Unknown cast: From {0} to {1}", from.Name, to.Name));
+            }
+        }
     }
 
-    internal abstract class LValue : CodeObject
+    internal abstract class LValue : Expression
     {
         public abstract void EmitGet(LOLMethod lm, Type t, ILGenerator gen);
         public abstract void StartSet(LOLMethod lm, Type t, ILGenerator gen);
         public abstract void EndSet(LOLMethod lm, Type t, ILGenerator gen);
 
         public LValue(CodePragma loc) : base(loc) { }
+
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
+        {
+            EmitGet(lm, t, gen);
+        }
     }
 
     internal class BlockStatement : Statement
@@ -103,32 +146,43 @@ namespace notdot.LOLCode
 
     internal class VariableLValue : LValue
     {
-        public string name;
+        public VariableRef var;
+
+        public override Type EvaluationType
+        {
+            get { return var.Type; }
+        }
 
         public override void EmitGet(LOLMethod lm, Type t, ILGenerator gen)
         {
-            LocalBuilder local = lm.GetLocal(name);
-            if (t == typeof(Dictionary<object, object>))
+            if (var is LocalRef)
             {
-                gen.Emit(OpCodes.Ldloca, local);
-                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToDict"), null);
+                if (t == typeof(Dictionary<object,object>))
+                {
+                    gen.Emit(OpCodes.Ldloca, (var as LocalRef).Local);
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToDict"), null);
+                }
+                else
+                {
+                    gen.Emit(OpCodes.Ldloc, (var as LocalRef).Local);
+                }
             }
             else
             {
-                gen.Emit(OpCodes.Ldloc, local);
-                if (t == typeof(int))
+                if (t == typeof(Dictionary<object,object>))
                 {
-                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToInt"), null);
+                    gen.Emit(OpCodes.Ldnull);
+                    gen.Emit(OpCodes.Ldflda, (var as GlobalRef).Field);
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToDict"), null);
                 }
-                else if (t == typeof(string))
+                else
                 {
-                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
-                }
-                else if (t != typeof(object))
-                {
-                    throw new ArgumentException("Type must be Dictionary<object,object>, int, or string");
+                    gen.Emit(OpCodes.Ldnull);
+                    gen.Emit(OpCodes.Ldfld, (var as GlobalRef).Field);
                 }
             }
+
+            Expression.EmitCast(gen, var.Type, t);
         }
 
         public override void StartSet(LOLMethod lm, Type t, ILGenerator gen)
@@ -141,8 +195,14 @@ namespace notdot.LOLCode
             LOLProgram.WrapObject(t, gen);
 
             //Store it
-            LocalBuilder local = lm.GetLocal(name);
-            gen.Emit(OpCodes.Stloc, local);
+            if (var is LocalRef)
+            {
+                gen.Emit(OpCodes.Stloc, (var as LocalRef).Local);
+            }
+            else
+            {
+                gen.Emit(OpCodes.Stfld, (var as GlobalRef).Field);
+            }
         }
 
         public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
@@ -151,13 +211,19 @@ namespace notdot.LOLCode
         }
 
         public VariableLValue(CodePragma loc) : base(loc) { }
-        public VariableLValue(CodePragma loc, string name) : base(loc) { this.name = name; }
+        public VariableLValue(CodePragma loc, VariableRef vr) : base(loc) { this.var = vr; }
     }
 
+    /*
     internal class ArrayIndexLValue : LValue
     {
         public LValue lval;
         public Expression index;
+
+        public override Type EvaluationType
+        {
+            get { return typeof(object); }
+        }
 
         public override void EmitGet(LOLMethod lm, Type t, ILGenerator gen)
         {
@@ -175,19 +241,9 @@ namespace notdot.LOLCode
             else
             {
                 gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("GetObject"), null);
-                if (t == typeof(int))
-                {
-                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToInt"), null);
-                }
-                else if (t == typeof(string))
-                {
-                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
-                }
-                else if (t != typeof(object))
-                {
-                    throw new ArgumentException("Type must be Dictionary<object,object>, int, or string");
-                }
             }
+
+            Expression.EmitCast(gen, typeof(object), t);
         }
 
         public override void StartSet(LOLMethod lm, Type t, ILGenerator gen)
@@ -215,29 +271,7 @@ namespace notdot.LOLCode
 
         public ArrayIndexLValue(CodePragma loc) : base(loc) { }
     }
-
-    internal class LValueExpression : Expression
-    {
-        public LValue lval;
-
-        public override Type EvaluationType
-        {
-            get { return typeof(object); }
-        }
-
-        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
-        {
-            lval.EmitGet(lm, t, gen);
-        }
-
-        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
-        {
-            lval.Process(lm, errors, gen);
-        }
-
-        public LValueExpression(CodePragma loc) : base(loc) { }
-        public LValueExpression(CodePragma loc, LValue lv) : base(loc) { lval = lv; }
-    }
+    */
 
     internal class AssignmentStatement : Statement
     {
@@ -264,16 +298,27 @@ namespace notdot.LOLCode
 
     internal class VariableDeclarationStatement : Statement
     {
-        public string name;
+        public VariableRef var;
         public Expression expression = null;
 
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
-            LocalBuilder local = lm.CreateLocal(name, gen);
+            if(var is LocalRef)
+                lm.DefineLocal(gen, var as LocalRef);
+
             if (expression != null)
             {
                 expression.Emit(lm, gen);
-                gen.Emit(OpCodes.Stloc, local);
+
+                if (var is LocalRef)
+                {
+                    gen.Emit(OpCodes.Stloc, (var as LocalRef).Local);
+                }
+                else
+                {
+                    gen.Emit(OpCodes.Ldnull);
+                    gen.Emit(OpCodes.Stfld, (var as GlobalRef).Field);
+                }
             }
         }
 
@@ -285,10 +330,21 @@ namespace notdot.LOLCode
         public VariableDeclarationStatement(CodePragma loc) : base(loc) { }
     }
 
+    internal enum LoopType
+    {
+        While,
+        Until
+    }
+
     internal class LoopStatement : BreakableStatement
     {
         public string name = null;
         public Statement statements;
+        public FunctionRef operation;
+        public LocalRef loopvar;
+        public LoopType type;
+        public Expression condition;
+
         private Label m_breakLabel;
         private Label m_continueLabel;
 
@@ -309,12 +365,13 @@ namespace notdot.LOLCode
 
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
+            //TODO: Add new loop behaviour
             lm.breakables.Add(this);
             gen.MarkLabel(m_continueLabel);
 
-            lm.BeginScope(gen);
+            //lm.BeginScope(gen);
             statements.Emit(lm, gen);
-            lm.EndScope(gen);
+            //lm.EndScope(gen);
 
             gen.Emit(OpCodes.Br, m_continueLabel);
 
@@ -336,36 +393,6 @@ namespace notdot.LOLCode
         public LoopStatement(CodePragma loc) : base(loc) { }
     }
 
-    internal class BinaryOpStatement : Statement
-    {
-        public LValue lval;
-        public OpCode op;
-        public Expression amount;
-
-        public override void Emit(LOLMethod lm, ILGenerator gen)
-        {
-            location.MarkSequencePoint(gen);
-            lval.StartSet(lm, typeof(int), gen);
-            lval.EmitGet(lm, typeof(int), gen);
-            amount.Emit(lm, typeof(int), gen);
-            gen.Emit(op);
-            lval.EndSet(lm, typeof(int), gen);
-        }
-
-        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
-        {
-            lval.Process(lm, errors, gen);
-            amount.Process(lm, errors, gen);
-
-            if (amount.EvaluationType != typeof(int) && amount.EvaluationType != typeof(object))
-            {
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Expression is not valid on operand of type {0}", amount.EvaluationType.Name)));
-            }
-        }
-
-        public BinaryOpStatement(CodePragma loc) : base(loc) { }
-    }
-
     internal class PrimitiveExpression : Expression
     {
         public object value;
@@ -379,7 +406,12 @@ namespace notdot.LOLCode
         {
             if (value is int && t == typeof(string))
                 value = ((int)value).ToString();
-
+            if (value is float && t == typeof(string))
+                value = ((float)value).ToString();
+            if (value is string && t == typeof(int))
+                value = int.Parse((string)value);
+            if (value is string && t == typeof(float))
+                value = float.Parse((string)value);
             if (value.GetType() != t && t != typeof(object))
                 throw new ArgumentException(string.Format("{0} encountered, {1} expected.", value.GetType().Name, t.Name));
 
@@ -389,9 +421,17 @@ namespace notdot.LOLCode
                 if (t == typeof(object))
                     gen.Emit(OpCodes.Box, typeof(int));
             }
+            else if (value is float)
+            {
+                gen.Emit(OpCodes.Ldc_R4, (float)value);
+                if (t == typeof(object))
+                    gen.Emit(OpCodes.Box, typeof(float));
+            }
             else if (value is string)
             {
                 gen.Emit(OpCodes.Ldstr, (string)value);
+                if (t == typeof(object))
+                    gen.Emit(OpCodes.Castclass, typeof(object));
             }
         }
 
@@ -416,30 +456,35 @@ namespace notdot.LOLCode
         public Label ifFalse;
         public Label statementEnd;
 
+        private bool invert = false;
+
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
-            //Condition
-            location.MarkSequencePoint(gen);
-            condition.Emit(lm, condition.EvaluationType, gen);
+            condition.Emit(lm, typeof(bool), gen);
 
-            if (!(condition is ComparisonExpression))
-                //If the condition is a comparisonexpression, it emits the branch instruction
+            if (invert)
+            {
+                gen.Emit(OpCodes.Brtrue, ifFalse);
+            }
+            else
+            {
                 gen.Emit(OpCodes.Brfalse, ifFalse);
+            }
 
             //True statements
-            lm.BeginScope(gen);
+            //lm.BeginScope(gen);
             trueStatements.Emit(lm, gen);
-            if(falseStatements is BlockStatement &&  ((BlockStatement)falseStatements).statements.Count > 0)
+            if(!(falseStatements is BlockStatement) ||  ((BlockStatement)falseStatements).statements.Count > 0)
                 gen.Emit(OpCodes.Br, statementEnd);
-            lm.EndScope(gen);
+            //lm.EndScope(gen);
 
             //False statements
             gen.MarkLabel(ifFalse);
-            if (falseStatements is BlockStatement &&  ((BlockStatement)falseStatements).statements.Count > 0)
+            if (!(falseStatements is BlockStatement) ||  ((BlockStatement)falseStatements).statements.Count > 0)
             {
-                lm.BeginScope(gen);
+                //lm.BeginScope(gen);
                 falseStatements.Emit(lm, gen);
-                lm.EndScope(gen);
+                //lm.EndScope(gen);
             }
 
             //End of conditional
@@ -457,24 +502,13 @@ namespace notdot.LOLCode
                 Statement temp = trueStatements;
                 trueStatements = falseStatements;
                 falseStatements = temp;
-
-                if (condition is ComparisonExpression)
-                {
-                    (condition as ComparisonExpression).op ^= ComparisonOperator.Not;
-                }
-                else
-                {
-                    condition = new NotExpression(condition.location, condition);
-                }
+                invert = true;
             }
 
             condition.Process(lm, errors, gen);
             trueStatements.Process(lm, errors, gen);
             if(falseStatements != null)
                 falseStatements.Process(lm, errors, gen);
-
-            if (condition is ComparisonExpression)
-                (condition as ComparisonExpression).ifFalse = ifFalse;
         }
 
         public ConditionalStatement(CodePragma loc) : base(loc) { }
@@ -523,9 +557,9 @@ namespace notdot.LOLCode
             }
         }
 
-        public Expression control;
         public List<Case> cases = new List<Case>();
         public Statement defaultCase = null;
+        public Expression control;
 
         private Case[] sortedCases = null;
         private Label m_breakLabel;
@@ -549,7 +583,7 @@ namespace notdot.LOLCode
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
             lm.breakables.Add(this);
-            lm.BeginScope(gen);
+            //lm.BeginScope(gen);
             location.MarkSequencePoint(gen);
 
             if (cases[0].name is int)
@@ -581,7 +615,7 @@ namespace notdot.LOLCode
             //End of statement
             gen.MarkLabel(m_breakLabel);
 
-            lm.EndScope(gen);
+            //lm.EndScope(gen);
             lm.breakables.RemoveAt(lm.breakables.Count - 1);
         }
 
@@ -769,45 +803,6 @@ namespace notdot.LOLCode
         public SwitchStatement(CodePragma loc) : base(loc) { }
     }
 
-    internal class QuitStatement : Statement {
-        public Expression code;
-        public Expression message = null;
-
-        public override void Emit(LOLMethod lm, ILGenerator gen)
-        {
-            location.MarkSequencePoint(gen);
-
-            if (message != null)
-            {
-                //Get the error stream
-                gen.EmitCall(OpCodes.Call, typeof(Console).GetProperty("Error", BindingFlags.Public | BindingFlags.Static).GetGetMethod(), null);
-
-                //Get the message
-                message.Emit(lm, typeof(string), gen);
-
-                //Write the message
-                gen.EmitCall(OpCodes.Callvirt, typeof(TextWriter).GetMethod("WriteLine", new Type[] { typeof(string) }), null);
-            }
-
-            code.Emit(lm, gen);
-            gen.Emit(OpCodes.Ret);
-        }
-
-        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
-        {
-            code.Process(lm, errors, gen);
-            if (message != null)
-                message.Process(lm, errors, gen);
-
-            if(code.EvaluationType != typeof(int) && code.EvaluationType != typeof(object))
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "First argument to BYES or DIAF must be an integer"));
-            if(message != null && message.EvaluationType != typeof(string) && message.EvaluationType != typeof(object))
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Second argument to BYES or DIAF must be a string"));
-        }
-
-        public QuitStatement(CodePragma loc) : base(loc) { }
-    }
-
     internal class PrintStatement : Statement {
         public bool stderr = false;
         public Expression message;
@@ -849,237 +844,6 @@ namespace notdot.LOLCode
         }
 
         public PrintStatement(CodePragma loc) : base(loc) { }
-    }
-
-    internal class IntegerBinaryExpression : Expression {
-        public Expression left;
-        public Expression right;
-        public OpCode op;
-        public bool negate = false;
-
-        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
-        {
-            if(typeof(int) != t && typeof(object) != t)
-                throw new ArgumentException("IntegerBinaryExpressions can only evaluate to type int");
-
-            left.Emit(lm, typeof(int), gen);
-            right.Emit(lm, typeof(int), gen);
-            gen.Emit(op);
-
-            if (typeof(object) == t)
-                gen.Emit(OpCodes.Box, typeof(int));
-        }
-
-        public override Type EvaluationType
-        {
-	        get { return typeof(int); }
-        }
-
-        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
-        {
-            left.Process(lm, errors, gen);
-            right.Process(lm, errors, gen);
-
-            if ((left.EvaluationType != typeof(int) && left.EvaluationType != typeof(object)) || (right.EvaluationType != typeof(int) && right.EvaluationType != typeof(object)))
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Expression is not valid on operands of type {0} and {1}.", left.EvaluationType.Name, right.EvaluationType.Name)));
-        }
-
-        public IntegerBinaryExpression(CodePragma loc) : base(loc) { }    
-    }
-
-    [Flags]
-    internal enum ComparisonOperator
-    {
-        None = 0,
-
-        Equal = 1,
-        LessThan = 2,
-        GreaterThan = 4,
-        Not = 8,
-
-        NotEqual = Equal | Not,
-        GreaterOrEqual = LessThan | Not,
-        LessOrEqual = GreaterThan | Not
-    }
-
-    internal class ComparisonExpression : Expression
-    {
-        public Expression left;
-        public Expression right;
-        public ComparisonOperator op;
-        public Label? ifFalse = null;
-        Type comparisonType;
-
-        public override Type EvaluationType
-        {
-            get { return typeof(int); }
-        }
-
-        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
-        {
-            left.Emit(lm, comparisonType, gen);
-            right.Emit(lm, comparisonType, gen);
-
-            if (comparisonType == typeof(object))
-            {
-                gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("CompareObjects"), null);
-            }
-            else if (comparisonType == typeof(string))
-            {
-                gen.EmitCall(OpCodes.Call, typeof(string).GetMethod("Compare", BindingFlags.Public | BindingFlags.Static, null, new Type[] { typeof(string), typeof(string) }, null), null);
-            }
-
-            if(comparisonType == typeof(int)) {
-                if(ifFalse.HasValue) {
-                    //Branching instruction
-                    switch(op) {
-                        case ComparisonOperator.LessThan:
-                            gen.Emit(OpCodes.Bge, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.LessOrEqual:
-                            gen.Emit(OpCodes.Bgt, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.Equal:
-                            gen.Emit(OpCodes.Ceq);
-                            gen.Emit(OpCodes.Brfalse, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.NotEqual:
-                            gen.Emit(OpCodes.Beq, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.GreaterOrEqual:
-                            gen.Emit(OpCodes.Blt, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.GreaterThan:
-                            gen.Emit(OpCodes.Ble, ifFalse.Value);
-                            break;
-                    }
-                } else {
-                    //Comparison instruction
-                    switch(op) {
-                        case ComparisonOperator.LessThan:
-                        case ComparisonOperator.GreaterOrEqual:
-                            gen.Emit(OpCodes.Clt);
-                            break;
-                        case ComparisonOperator.Equal:
-                        case ComparisonOperator.NotEqual:
-                            gen.Emit(OpCodes.Ceq);
-                            break;
-                        case ComparisonOperator.GreaterThan:
-                        case ComparisonOperator.LessOrEqual:
-                            gen.Emit(OpCodes.Cgt);
-                            break;
-                    }
-
-                    if((op & ComparisonOperator.Not) != ComparisonOperator.None)
-                        gen.Emit(OpCodes.Not);
-                }
-            } else {
-                if(ifFalse.HasValue) {
-                    //Branching instruction
-                    switch(op) {
-                        case ComparisonOperator.LessThan:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Bge, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.LessOrEqual:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Bgt, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.Equal:
-                            gen.Emit(OpCodes.Brtrue, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.NotEqual:
-                            gen.Emit(OpCodes.Brfalse, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.GreaterOrEqual:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Blt, ifFalse.Value);
-                            break;
-                        case ComparisonOperator.GreaterThan:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Ble, ifFalse.Value);
-                            break;                        
-                    }
-                } else {
-                    //Comparison instruction
-                    switch(op) {
-                        case ComparisonOperator.LessThan:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Clt);
-                            break;
-                        case ComparisonOperator.GreaterOrEqual:
-                            gen.Emit(OpCodes.Ldc_I4_M1);
-                            gen.Emit(OpCodes.Cgt);
-                            break;
-                        case ComparisonOperator.Equal:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Ceq);
-                            break;
-                        case ComparisonOperator.NotEqual:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Ceq);
-                            gen.Emit(OpCodes.Not);
-                            break;
-                        case ComparisonOperator.GreaterThan:
-                            gen.Emit(OpCodes.Ldc_I4_0);
-                            gen.Emit(OpCodes.Cgt);
-                            break;
-                        case ComparisonOperator.LessOrEqual:
-                            gen.Emit(OpCodes.Ldc_I4_1);
-                            gen.Emit(OpCodes.Clt);
-                            break;
-                    }
-                }
-            }
-        }
-
-        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
-        {
-            left.Process(lm, errors, gen);
-            right.Process(lm, errors, gen);
-
-            if (left.EvaluationType == right.EvaluationType)
-            {
-                comparisonType = left.EvaluationType;
-            }
-            else if (left.EvaluationType == typeof(object))
-            {
-                comparisonType = right.EvaluationType;
-            } 
-            else if(right.EvaluationType == typeof(object)) 
-            {
-                comparisonType = right.EvaluationType;
-            }
-            else
-            {
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Cannot compare dissimilar types"));
-            }
-        }
-
-        public ComparisonExpression(CodePragma loc) : base(loc) { }
-    }
-
-    internal class NotExpression : Expression
-    {
-        public Expression exp;
-
-        public override Type EvaluationType
-        {
-            get { return typeof(int); }
-        }
-
-        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
-        {
-            gen.Emit(OpCodes.Not);
-        }
-
-        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
-        {
-            if (exp.EvaluationType != typeof(int))
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Cannot negate a non-integer expression"));
-        }
-
-        public NotExpression(CodePragma loc, Expression e) : base(loc) { exp = e; }
     }
 
     internal enum IOAmount
@@ -1206,5 +970,200 @@ namespace notdot.LOLCode
         }
 
         public ContinueStatement(CodePragma loc) : base(loc) { }
+    }
+
+    internal class FunctionExpression : Expression
+    {
+        public FunctionRef func;
+        public List<Expression> arguments = new List<Expression>();
+
+        public override Type EvaluationType
+        {
+            get { return func.ReturnType; }
+        }
+
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
+        {
+            if (func.IsVariadic)
+            {
+                //First do standard (non variadic) arguments)
+                for (int i = 0; i < func.Arity; i++)
+                    arguments[i].Emit(lm, func.ArgumentTypes[i], gen);
+
+                //Now any variadic arguments go into an array
+                Type argType = func.ArgumentTypes[func.Arity].GetElementType();
+                gen.Emit(OpCodes.Ldc_I4, arguments.Count - func.Arity);
+                gen.Emit(OpCodes.Newarr, argType);
+
+                for (int i = func.Arity; i < arguments.Count; i++)
+                {
+                    gen.Emit(OpCodes.Dup);
+                    gen.Emit(OpCodes.Ldc_I4, i - func.Arity);
+                    arguments[i].Emit(lm, argType, gen);
+                    gen.Emit(OpCodes.Stelem, argType);
+                }
+
+                gen.EmitCall(OpCodes.Call, func.Method, null);
+            }
+            else
+            {
+                for (int i = 0; i < arguments.Count; i++)
+                    arguments[i].Emit(lm, func.ArgumentTypes[i], gen);
+
+                gen.EmitCall(OpCodes.Call, func.Method, null);
+            }
+            
+            //Finally, make sure the return type is correct
+            Expression.EmitCast(gen, func.ReturnType, t);
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            if (arguments.Count != func.Arity || (func.IsVariadic && arguments.Count < func.Arity))
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Attempted to call a function that takes {0} args with {1} args.", func.Arity, arguments.Count)));
+
+            foreach (Expression arg in arguments)
+                arg.Process(lm, errors, gen);
+        }
+
+        public FunctionExpression(CodePragma loc) : base(loc) { }
+
+        public FunctionExpression(CodePragma loc, FunctionRef fr) : base(loc) { func = fr; }
+    }
+
+    internal class StringExpression : Expression
+    {
+        private LValue[] vars;
+        private string str;
+
+        public override Type EvaluationType
+        {
+            get { return typeof(string); }
+        }
+
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
+        {
+            if (vars.Length == 0)
+            {
+                //Just output the string
+                gen.Emit(OpCodes.Ldstr, str);
+            }
+            else
+            {
+                //Output a call to string.Format
+                gen.Emit(OpCodes.Ldstr, str);
+                gen.Emit(OpCodes.Ldc_I4, vars.Length);
+                gen.Emit(OpCodes.Newarr, typeof(object));
+
+                for (int i = 0; i < vars.Length; i++)
+                {
+                    gen.Emit(OpCodes.Dup);
+                    gen.Emit(OpCodes.Ldc_I4, i);
+                    vars[i].EmitGet(lm, vars[i].EvaluationType, gen);
+                    gen.Emit(OpCodes.Stelem, vars[i].EvaluationType);
+                }
+
+                gen.EmitCall(OpCodes.Call, typeof(string).GetMethod("Format", new Type[] { typeof(string), typeof(object[]) }), null);
+            }
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            return;
+        }
+
+        private string UnescapeString(string str, Scope s, Errors e, List<VariableRef> refs)
+        {
+            int lastIdx = 1;
+            int idx;
+            StringBuilder ret = new StringBuilder();
+
+            try
+            {
+                while ((idx = str.IndexOf(':', lastIdx)) != -1)
+                {
+                    //Append the string between the last escape and this one
+                    ret.Append(str, lastIdx, idx - lastIdx);
+
+                    //Decipher the escape
+                    int endIdx, refnum;
+                    VariableRef vr;
+                    switch (str[idx + 1])
+                    {
+                        case ')':
+                            ret.Append('\n');
+                            lastIdx = idx + 2;
+                            break;
+                        case '>':
+                            ret.Append('\t');
+                            lastIdx = idx + 2;
+                            break;
+                        case 'o':
+                            ret.Append('\a');
+                            lastIdx = idx + 2;
+                            break;
+                        case '"':
+                            ret.Append('"');
+                            lastIdx = idx + 2;
+                            break;
+                        case ':':
+                            ret.Append(':');
+                            lastIdx = idx + 2;
+                            break;
+                        case '(':
+                            endIdx = str.IndexOf(')', idx + 2);
+                            ret.Append(char.ConvertFromUtf32(int.Parse(str.Substring(idx + 2, endIdx - idx - 2), System.Globalization.NumberStyles.AllowHexSpecifier)));
+                            lastIdx = endIdx + 1;
+                            break;
+                        case '{':
+                            endIdx = str.IndexOf('}', idx + 2);
+                            vr = s[str.Substring(idx + 2, endIdx - idx - 2)] as VariableRef;
+                            if (vr == null)
+                                e.SemErr(location.filename, location.startLine, location.startColumn, string.Format("Undefined variable: \"{0}\"", str.Substring(idx + 2, endIdx - idx - 2)));
+                            refnum = refs.IndexOf(vr);
+                            if (refnum == -1)
+                            {
+                                refnum = refs.Count;
+                                refs.Add(vr);
+                            }
+                            ret.Append("{" + refnum.ToString() + "}");
+                            lastIdx = endIdx + 1;
+                            break;
+                        case '[':
+                            endIdx = str.IndexOf(']', idx + 2);
+                            string uc = UnicodeNameLookup.GetUnicodeCharacter(str.Substring(idx + 2, endIdx - idx - 2));
+                            if (uc == null)
+                            {
+                                e.SemErr(location.filename, location.startLine, location.startColumn, string.Format("Unknown unicode normative name: \"{0}\".", str.Substring(idx + 2, endIdx - idx - 2)));
+                            }
+                            else
+                            {
+                                ret.Append(uc);
+                            }
+                            lastIdx = endIdx + 1;
+                            break;
+                    }
+                }
+
+                //Append the end of the string
+                ret.Append(str, lastIdx, str.Length - lastIdx - 1);
+            }
+            catch (Exception ex)
+            {
+                e.SemErr(string.Format("Invalid escape sequence in string constant: {0}", ex.Message));
+            }
+
+            return ret.ToString();
+        }
+
+        public StringExpression(CodePragma loc, string str, Scope s, Errors e) : base(loc)
+        {
+            List<VariableRef> refs = new List<VariableRef>();
+            this.str = UnescapeString(str, s, e, refs);
+
+            vars = new LValue[refs.Count];
+            for (int i = 0; i < vars.Length; i++)
+                vars[i] = new VariableLValue(location, refs[i]);
+        }
     }
 }

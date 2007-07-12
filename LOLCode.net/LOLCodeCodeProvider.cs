@@ -89,18 +89,25 @@ namespace notdot.LOLCode
             ModuleBuilder mb = ab.DefineDynamicModule(Path.GetFileName(options.OutputAssembly), options.IncludeDebugInformation);
 
             CompilerResults ret = new CompilerResults(options.TempFiles);
-            Errors err = new Errors(ret.Errors);
 
             LOLProgram prog = new LOLProgram(options);
             for (int i = 0; i < streams.Length; i++)
             {
-                Parser p = Parser.GetParser(mb, prog, filenames[i], streams[i]);
-                p.errors = err;
-                p.Parse();
-            }
+                if (!streams[i].CanSeek)
+                    throw new ArgumentException("Streams passed to CompileAssemblyFromStream[Batch] must be seekable");
 
-            if(ret.Errors.HasErrors)
-                return ret;
+                LOLCode.Parser.Pass1.Parser pass1 = notdot.LOLCode.Parser.Pass1.Parser.GetParser(prog, filenames[i], streams[i], ret);
+                pass1.Parse();
+                if (ret.Errors.HasErrors)
+                    return ret;
+
+                streams[i].Seek(0, SeekOrigin.Begin);
+
+                LOLCode.Parser.v1_2.Parser p = LOLCode.Parser.v1_2.Parser.GetParser(mb, prog, filenames[i], streams[i], ret);
+                p.Parse();
+                if (ret.Errors.HasErrors)
+                    return ret;
+            }
 
             MethodInfo entryMethod = prog.Emit(ret.Errors, mb);
             if (ret.Errors.HasErrors)
