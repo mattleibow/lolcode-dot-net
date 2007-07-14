@@ -1,3 +1,8 @@
+Revision 34
+-----------
+- Support for LOLCode spec 1.2
+- Dropped support for LOLCode pre-1.2 (1.2 is a major overhaul of the language)
+
 Revision 31
 -----------
 - Fixed a bug causing syntax errors on "CAN HAS"

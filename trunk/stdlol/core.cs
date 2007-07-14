@@ -295,5 +295,31 @@ namespace stdlol
         {
             return string.Concat(args);
         }
+
+        [LOLCodeFunction]
+        public static object UPPIN(object a)
+        {
+            if (a is string)
+                a = FromString(a as string);
+
+            if (a is int)
+                return (int)a + 1;
+            if (a is float)
+                return (float)a + 1;
+            throw new ArgumentException(string.Format("Cannot call UPPIN on value of type {0}", a.GetType().Name));
+        }
+
+        [LOLCodeFunction]
+        public static object NERFIN(object a)
+        {
+            if (a is string)
+                a = FromString(a as string);
+
+            if (a is int)
+                return (int)a - 1;
+            if (a is float)
+                return (float)a - 1;
+            throw new ArgumentException(string.Format("Cannot call NERFIN on value of type {0}", a.GetType().Name));
+        }
     }
 }

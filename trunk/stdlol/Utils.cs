@@ -30,7 +30,7 @@ namespace stdlol
             }
         }
 
-        private static bool ToBool(object b)
+        public static bool ToBool(object b)
         {
             if (b == null)
                 return false;
@@ -39,6 +39,8 @@ namespace stdlol
             if (b is float && ((float)b) == 0)
                 return false;
             if (b is string && ((string)b) == "")
+                return false;
+            if (b is bool && !(bool)b)
                 return false;
             return true;
         }

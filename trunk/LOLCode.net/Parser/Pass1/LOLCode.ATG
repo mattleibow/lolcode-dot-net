@@ -10,8 +10,8 @@ CHARACTERS
 	cr					= '\u000d'.
 	newLine				= cr + eol.
 	
-	startLetter			= 'A' .. 'Z' + '_'.
-	partLetter			= '0' .. '9' + 'A' .. 'Z' + '_'.
+	startLetter			= 'A' .. 'Z' + 'a' .. 'z' + '_'.
+	partLetter			= '0' .. '9' + 'A' .. 'Z' + 'a' .. 'z' + '_'.
 	
 	digit				= "0123456789".
 	hexDigit			= digit + "ABCDEFabcdef".	
@@ -71,7 +71,7 @@ FunctionDeclaration
 	[ "YR" ident									(. arity++; .)
 	{ "AN" "YR" ident								(. arity++; .)
 	} ] { eos }
-	{ OtherStatement }
+	{ (VarDecl | OtherStatement) eos {eos} }
 	"IF" "U" "SAY" "SO"								(. globals.AddSymbol(new UserFunctionRef(name, arity, false)); .)
 .
 
@@ -101,7 +101,8 @@ Keyword
 	| "XOR"			| "OR"			| "NOT"			| "BIGR"
 	| "THAN"		| "SMALR"		| "LIEK"		| "UP"
 	| "NERF"		| "TIEMZ"		| "OVAR"		| "NOOB"
-	| "MAH"			| "OF"
+	| "MAH"			| "OF"			| "MAEK"		| "IS"
+	| "NOW"			| "FOUND"
 .
 
 END LOLCode.

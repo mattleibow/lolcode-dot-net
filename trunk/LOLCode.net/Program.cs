@@ -102,6 +102,7 @@ namespace notdot.LOLCode
     internal class LOLMethod
     {
         public FunctionRef info;
+        public ArgumentRef[] args;
         public LOLProgram program;
         public Statement statements;
         public List<BreakableStatement> breakables = new List<BreakableStatement>();
@@ -111,8 +112,12 @@ namespace notdot.LOLCode
         public LOLMethod(FunctionRef info, LOLProgram prog)
         {
             this.info = info;
+            this.args = new ArgumentRef[info.Arity + (info.IsVariadic ? 1 : 0)];
             this.program = prog;
             this.locals = new Scope(prog.globals);
+
+            LocalRef it = new LocalRef("IT");
+            locals.AddSymbol(it);
         }
 
         public void DefineLocal(ILGenerator gen, LocalRef l)
@@ -149,13 +154,34 @@ namespace notdot.LOLCode
 
         public void Emit(CompilerErrorCollection errors, MethodBuilder m)
         {
+            //Set the parameters
+            //ParameterBuilder[] parms = new ParameterInfo[args.Length];
+            for(int i = 0; i < args.Length; i++)
+                m.DefineParameter(i + 1, ParameterAttributes.None, args[i].Name);
+
             ILGenerator gen = m.GetILGenerator();
-            
-            LocalRef it = new LocalRef("IT");
-            locals.AddSymbol(it);
+
+            //Define the IT variable
+            LocalRef it = locals["IT"] as LocalRef;
             DefineLocal(gen, it);
 
+            statements.Process(this, errors, gen);
+
             statements.Emit(this, gen);
+
+            //Cast the IT variable to our return type and return it
+            if (m.ReturnType != typeof(void))
+            {
+                gen.Emit(OpCodes.Ldloc, it.Local);
+                Expression.EmitCast(gen, it.Type, m.ReturnType);
+            }
+            gen.Emit(OpCodes.Ret);
+        }
+
+        public void SetArgumentName(short num, string name)
+        {
+            args[num] = new ArgumentRef(name, num);
+            locals.AddSymbol(args[num]);
         }
     }
 }

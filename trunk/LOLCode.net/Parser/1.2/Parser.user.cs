@@ -134,7 +134,7 @@ namespace notdot.LOLCode.Parser.v1_2
             return ret as VariableRef;
         }
 
-        private LocalRef CreateLoopVariable(string name)
+        /*private LocalRef CreateLoopVariable(string name)
         {
             LocalRef ret = new LocalRef(name);
             GetScope().AddSymbol(ret);
@@ -145,11 +145,17 @@ namespace notdot.LOLCode.Parser.v1_2
         private void RemoveLoopVariable(LocalRef var)
         {
             GetScope().RemoveSymbol(var);
-        }
+        }*/
 
         private void AddCase(SwitchStatement ss, object label, Statement block)
         {
             ss.cases.Add(new SwitchStatement.Case(label, block));
+        }
+
+        private Token TokenAfterLValue()
+        {
+            scanner.ResetPeek();
+            return scanner.Peek();
         }
     }
 

@@ -21,10 +21,13 @@ internal partial class Parser {
 	const int _im = 8;
 	const int _outta = 9;
 	const int _mkay = 10;
-	const int maxT = 51;
-	const int _comment = 52;
-	const int _blockcomment = 53;
-	const int _continuation = 54;
+	const int _r = 11;
+	const int _is = 12;
+	const int _how = 13;
+	const int maxT = 63;
+	const int _comment = 64;
+	const int _blockcomment = 65;
+	const int _continuation = 66;
 
 	const bool T = true;
 	const bool x = false;
@@ -59,11 +62,11 @@ internal partial class Parser {
 			t = la;
 			la = scanner.Scan();
 			if (la.kind <= maxT) { ++errDist; break; }
-				if (la.kind == 52) {
+				if (la.kind == 64) {
 				}
-				if (la.kind == 53) {
+				if (la.kind == 65) {
 				}
-				if (la.kind == 54) {
+				if (la.kind == 66) {
 				}
 
 			la = t;
@@ -101,17 +104,17 @@ internal partial class Parser {
 	}
 	
 	void LOLCode() {
-		Expect(11);
-		if (la.kind == 12) {
+		Expect(14);
+		if (la.kind == 15) {
 			Get();
-			Expect(13);
+			Expect(16);
 			program.version = LOLCodeVersion.v1_2; 
 		}
 		while (la.kind == 5) {
 			Get();
 		}
 		Statements(out program.methods["Main"].statements);
-		Expect(14);
+		Expect(17);
 		while (la.kind == 5) {
 			Get();
 		}
@@ -120,13 +123,15 @@ internal partial class Parser {
 	void Statements(out Statement stat) {
 		BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; 
 		Statement s; 
-		while ((StartOf(1) || la.kind == _can) && scanner.Peek().kind != _outta) {
+		while ((StartOf(1) || la.kind == _can || la.kind == _how) && scanner.Peek().kind != _outta) {
 			if (la.kind == 6) {
 				CanHasStatement();
+			} else if (la.kind == 13) {
+				FunctionDeclaration();
 			} else if (StartOf(1)) {
 				Statement(out s);
 				bs.statements.Add(s); 
-			} else SynErr(52);
+			} else SynErr(64);
 			while (la.kind == 5) {
 				Get();
 			}
@@ -136,69 +141,84 @@ internal partial class Parser {
 	void CanHasStatement() {
 		StringBuilder sb = new StringBuilder(); 
 		Expect(6);
-		Expect(16);
+		Expect(19);
 		Expect(1);
 		sb.Append(t.val); 
-		while (la.kind == 20) {
+		while (la.kind == 22) {
 			Get();
 			Expect(1);
 			sb.Append('.'); sb.Append(t.val); 
 		}
-		Expect(21);
+		Expect(23);
 		if(!program.ImportLibrary(sb.ToString())) Error(string.Format("Library \"{0}\" not found.", sb.ToString())); 
+	}
+
+	void FunctionDeclaration() {
+		if(currentMethod != null) Error("Cannot define a function inside another function."); 
+		Expect(13);
+		Expect(57);
+		Expect(18);
+		Expect(1);
+		currentMethod = new LOLMethod(GetFunction(t.val), program); short arg = 0; 
+		if (la.kind == 30) {
+			Get();
+			Expect(1);
+			currentMethod.SetArgumentName(arg++, t.val); 
+			while (la.kind == 48) {
+				Get();
+				Expect(30);
+				Expect(1);
+				currentMethod.SetArgumentName(arg++, t.val); 
+			}
+		}
+		while (la.kind == 5) {
+			Get();
+		}
+		Statements(out currentMethod.statements);
+		Expect(58);
+		Expect(59);
+		Expect(60);
+		Expect(61);
+		program.methods.Add(currentMethod.info.Name, currentMethod); currentMethod = null; 
 	}
 
 	void Statement(out Statement stat) {
 		stat = null; 
-		switch (la.kind) {
-		case 15: {
+		if (la.kind == 18) {
 			IHasAStatement(out stat);
-			break;
-		}
-		case 1: {
+		} else if (TokenAfterLValue().kind == _r) {
 			AssignmentStatement(out stat);
-			break;
-		}
-		case 22: {
+		} else if (TokenAfterLValue().kind == _is) {
+			TypecastStatement(out stat);
+		} else if (la.kind == 24) {
 			GimmehStatement(out stat);
-			break;
-		}
-		case 8: {
+		} else if (la.kind == 8) {
 			LoopStatement(out stat);
-			break;
-		}
-		case 26: {
+		} else if (la.kind == 28) {
 			BreakStatement(out stat);
-			break;
-		}
-		case 27: {
+		} else if (la.kind == 29) {
 			ContinueStatement(out stat);
-			break;
-		}
-		case 32: {
+		} else if (la.kind == 33) {
 			OrlyStatement(out stat);
-			break;
-		}
-		case 39: {
+		} else if (la.kind == 40) {
 			SwitchStatement(out stat);
-			break;
-		}
-		case 43: case 44: {
+		} else if (la.kind == 43 || la.kind == 44) {
 			PrintStatement(out stat);
-			break;
-		}
-		default: SynErr(53); break;
-		}
+		} else if (StartOf(2)) {
+			ExpressionStatement(out stat);
+		} else if (la.kind == 62) {
+			ReturnStatement(out stat);
+		} else SynErr(65);
 	}
 
 	void IHasAStatement(out Statement stat) {
 		VariableDeclarationStatement vds = new VariableDeclarationStatement(GetPragma(la)); stat = vds; 
-		Expect(15);
-		Expect(16);
-		Expect(17);
+		Expect(18);
+		Expect(19);
+		Expect(20);
 		Expect(1);
 		vds.var = DeclareVariable(t.val); SetEndPragma(stat); 
-		if (la.kind == 18) {
+		if (la.kind == 21) {
 			Get();
 			Expression(out vds.expression);
 		}
@@ -207,18 +227,28 @@ internal partial class Parser {
 	void AssignmentStatement(out Statement stat) {
 		AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; 
 		LValue(out ass.lval);
-		Expect(19);
+		Expect(11);
 		Expression(out ass.rval);
 		SetEndPragma(stat); 
 	}
 
+	void TypecastStatement(out Statement stat) {
+		AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; Type t; 
+		LValue(out ass.lval);
+		Expect(12);
+		Expect(46);
+		Expect(20);
+		Typename(out t);
+		SetEndPragma(ass); ass.rval = new TypecastExpression(ass.location, t, ass.lval); 
+	}
+
 	void GimmehStatement(out Statement stat) {
 		InputStatement ins = new InputStatement(GetPragma(la)); stat = ins; 
-		Expect(22);
-		if (la.kind == 23 || la.kind == 24 || la.kind == 25) {
-			if (la.kind == 23) {
+		Expect(24);
+		if (la.kind == 25 || la.kind == 26 || la.kind == 27) {
+			if (la.kind == 25) {
 				Get();
-			} else if (la.kind == 24) {
+			} else if (la.kind == 26) {
 				Get();
 				ins.amount = IOAmount.Word; 
 			} else {
@@ -234,30 +264,30 @@ internal partial class Parser {
 		LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; 
 		Expect(8);
 		Expect(7);
-		if (la.kind == 28) {
-			Get();
-		} else if (la.kind == 29) {
-			Get();
-		} else SynErr(54);
+		Expect(30);
 		Expect(1);
-		ls.name = t.val; SetEndPragma(stat); BeginScope(); 
+		ls.name = t.val; BeginScope(); 
 		if (la.kind == 1) {
+			ls.StartOperation(GetPragma(la)); 
 			Get();
-			ls.operation = GetFunction(t.val); 
-			Expect(28);
-			Expect(1);
-			ls.loopvar = CreateLoopVariable(t.val); 
-			if (la.kind == 30 || la.kind == 31) {
-				if (la.kind == 30) {
-					Get();
-					ls.type = LoopType.Until; 
-				} else {
-					Get();
-					ls.type = LoopType.While; 
-					Expression(out ls.condition);
-				}
+			ls.SetOperationFunction(GetFunction(t.val)); 
+			if (la.kind == 30) {
+				Get();
 			}
+			Expect(1);
+			ls.SetLoopVariable(GetPragma(t), GetVariable(t.val)); SetEndPragma(ls.operation); SetEndPragma(((ls.operation as AssignmentStatement).rval as FunctionExpression).arguments[0]); SetEndPragma((ls.operation as AssignmentStatement).rval); SetEndPragma((ls.operation as AssignmentStatement).lval); 
 		}
+		if (la.kind == 31 || la.kind == 32) {
+			if (la.kind == 31) {
+				Get();
+				ls.type = LoopType.Until; 
+			} else {
+				Get();
+				ls.type = LoopType.While; 
+			}
+			Expression(out ls.condition);
+		}
+		SetEndPragma(stat); 
 		Expect(5);
 		while (la.kind == 5) {
 			Get();
@@ -265,18 +295,14 @@ internal partial class Parser {
 		Statements(out ls.statements);
 		Expect(8);
 		Expect(9);
-		if (la.kind == 28) {
-			Get();
-		} else if (la.kind == 29) {
-			Get();
-		} else SynErr(55);
+		Expect(30);
 		Expect(1);
-		RemoveLoopVariable(ls.loopvar); if(t.val != ls.name) Error("Loop terminator label does not match loop label"); EndScope(); 
+		if(t.val != ls.name) Error("Loop terminator label does not match loop label"); EndScope(); 
 	}
 
 	void BreakStatement(out Statement stat) {
 		BreakStatement bs = new BreakStatement(GetPragma(la)); stat = bs; 
-		Expect(26);
+		Expect(28);
 		if (la.kind == 1) {
 			Get();
 			bs.label = t.val; 
@@ -287,7 +313,7 @@ internal partial class Parser {
 
 	void ContinueStatement(out Statement stat) {
 		ContinueStatement cs = new ContinueStatement(GetPragma(la)); stat = cs; 
-		Expect(27);
+		Expect(29);
 		if (la.kind == 1) {
 			Get();
 			cs.label = t.val; 
@@ -298,15 +324,16 @@ internal partial class Parser {
 
 	void OrlyStatement(out Statement stat) {
 		ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; ConditionalStatement cur = cs; Statement st; Expression e; cs.condition = new VariableLValue(GetPragma(la), GetVariable("IT")); 
-		Expect(32);
 		Expect(33);
-		Expect(21);
+		Expect(34);
+		Expect(23);
+		SetEndPragma(cs); 
 		while (la.kind == 5) {
 			Get();
 		}
-		if (la.kind == 34) {
+		if (la.kind == 35) {
 			Get();
-			Expect(33);
+			Expect(34);
 			while (la.kind == 5) {
 				Get();
 			}
@@ -314,20 +341,20 @@ internal partial class Parser {
 		BeginScope(); 
 		Statements(out cs.trueStatements);
 		EndScope(); 
-		while (la.kind == 35) {
+		while (la.kind == 36) {
 			Get();
 			cur.falseStatements = new ConditionalStatement(GetPragma(la)); 
 			Expression(out e);
+			(cur.falseStatements as ConditionalStatement).condition = e; SetEndPragma(cur.falseStatements); cur = (ConditionalStatement)cur.falseStatements; BeginScope(); 
 			while (la.kind == 5) {
 				Get();
 			}
-			(cur.falseStatements as ConditionalStatement).condition = e; cur = (ConditionalStatement)cur.falseStatements; BeginScope(); 
 			Statements(out cur.trueStatements);
 			EndScope(); 
 		}
-		if (la.kind == 36) {
+		if (la.kind == 37) {
 			Get();
-			Expect(37);
+			Expect(38);
 			while (la.kind == 5) {
 				Get();
 			}
@@ -335,33 +362,34 @@ internal partial class Parser {
 			Statements(out cur.falseStatements);
 			EndScope(); 
 		}
-		Expect(38);
+		Expect(39);
 	}
 
 	void SwitchStatement(out Statement stat) {
 		SwitchStatement ss = new SwitchStatement(GetPragma(la)); ss.control = new VariableLValue(GetPragma(la), GetVariable("IT")); stat = ss; Object label; Statement block; 
-		Expect(39);
-		Expect(21);
+		Expect(40);
+		Expect(23);
+		SetEndPragma(ss); 
 		while (la.kind == 5) {
 			Get();
 		}
-		while (la.kind == 40) {
+		while (la.kind == 41) {
 			Get();
-			Const(out label);
+			SwitchLabel(out label);
 			while (la.kind == 5) {
 				Get();
 			}
 			Statements(out block);
 			AddCase(ss, label, block); 
 		}
-		if (la.kind == 41) {
+		if (la.kind == 42) {
 			Get();
 			while (la.kind == 5) {
 				Get();
 			}
 			Statements(out ss.defaultCase);
 		}
-		Expect(42);
+		Expect(39);
 	}
 
 	void PrintStatement(out Statement stat) {
@@ -371,7 +399,7 @@ internal partial class Parser {
 		} else if (la.kind == 44) {
 			Get();
 			ps.stderr = true; 
-		} else SynErr(56);
+		} else SynErr(66);
 		while (StartOf(2)) {
 			Expression(out e);
 			(ps.message as FunctionExpression).arguments.Add(e); 
@@ -384,19 +412,44 @@ internal partial class Parser {
 		SetEndPragma(stat); 
 	}
 
+	void ExpressionStatement(out Statement stat) {
+		AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); ass.lval = new VariableLValue(GetPragma(la), GetVariable("IT")); stat = ass; Expression exp;
+		Expression(out exp);
+		ass.rval = exp; SetEndPragma(ass); 
+	}
+
+	void ReturnStatement(out Statement stat) {
+		ReturnStatement rs = new ReturnStatement(GetPragma(la)); stat = rs; 
+		Expect(62);
+		Expect(30);
+		Expression(out rs.expression);
+	}
+
 	void Expression(out Expression exp) {
 		exp = null; 
 		if (IsFunction(la.val)) {
 			FunctionExpression(out exp);
-		} else if (StartOf(2)) {
+		} else if (la.kind == 49) {
+			TypecastExpression(out exp);
+		} else if (StartOf(3)) {
 			Unary(out exp);
-		} else SynErr(57);
+		} else SynErr(67);
 	}
 
 	void LValue(out LValue lv) {
 		lv = null; 
 		Expect(1);
 		lv = new VariableLValue(GetPragma(t), GetVariable(t.val)); SetEndPragma(lv); 
+	}
+
+	void SwitchLabel(out object obj) {
+		obj = null; 
+		if (StartOf(4)) {
+			Const(out obj);
+		} else if (la.kind == 4) {
+			Get();
+			List<VariableRef> refs = new List<VariableRef>(); obj = notdot.LOLCode.StringExpression.UnescapeString(t.val, GetScope(), errors, GetPragma(t), refs); if(refs.Count > 0) Error("String constants in OMG labels cannot contain variable substitutions."); 
+		} else SynErr(68);
 	}
 
 	void Const(out object val) {
@@ -407,44 +460,72 @@ internal partial class Parser {
 		} else if (la.kind == 3) {
 			Get();
 			val = float.Parse(t.val); 
-		} else if (la.kind == 48) {
+		} else if (la.kind == 54) {
 			Get();
 			val = null; 
-		} else if (la.kind == 49) {
+		} else if (la.kind == 55) {
 			Get();
 			val = true; 
-		} else if (la.kind == 50) {
+		} else if (la.kind == 56) {
 			Get();
 			val = false; 
-		} else SynErr(58);
+		} else SynErr(69);
+	}
+
+	void Typename(out Type t) {
+		t = typeof(void); 
+		if (la.kind == 50) {
+			Get();
+			t = typeof(bool); 
+		} else if (la.kind == 51) {
+			Get();
+			t = typeof(int); 
+		} else if (la.kind == 52) {
+			Get();
+			t = typeof(float); 
+		} else if (la.kind == 53) {
+			Get();
+			t = typeof(string); 
+		} else SynErr(70);
 	}
 
 	void FunctionExpression(out Expression exp) {
 		FunctionExpression fe = new FunctionExpression(GetPragma(la)); exp = fe; Expression e2; 
 		Expect(1);
 		fe.func = GetFunction(t.val); int argsLeft = fe.func.Arity; 
-		if (la.kind == 46) {
+		if (la.kind == 47) {
 			Get();
 		}
-		if (argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) {
+		if ((argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) && la.kind != _eos) {
 			Expression(out e2);
 			fe.arguments.Add(e2); argsLeft--; 
-			while (argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) {
-				if (la.kind == 47) {
+			while ((argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) && la.kind != _eos) {
+				if (la.kind == 48) {
 					Get();
 				}
 				Expression(out e2);
 				fe.arguments.Add(e2); argsLeft--; 
 			}
 		}
-		if (fe.func.IsVariadic) {
+		if (fe.func.IsVariadic && la.kind != _eos) {
 			Expect(10);
 		}
 	}
 
+	void TypecastExpression(out Expression exp) {
+		TypecastExpression te = new TypecastExpression(GetPragma(la)); exp = te; 
+		Expect(49);
+		Expression(out te.exp);
+		if (la.kind == 20) {
+			Get();
+		}
+		Typename(out te.destType);
+		SetEndPragma(te); 
+	}
+
 	void Unary(out Expression exp) {
 		exp = null; Object val; LValue lv; 
-		if (StartOf(3)) {
+		if (StartOf(4)) {
 			Const(out val);
 			exp = new PrimitiveExpression(GetPragma(t), val); SetEndPragma(exp); 
 		} else if (la.kind == 4) {
@@ -452,7 +533,7 @@ internal partial class Parser {
 		} else if (la.kind == 1) {
 			LValue(out lv);
 			exp = lv; SetEndPragma(exp); 
-		} else SynErr(59);
+		} else SynErr(71);
 	}
 
 	void StringExpression(out Expression exp) {
@@ -472,10 +553,11 @@ internal partial class Parser {
 	}
 	
 	bool[,] set = {
-		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x},
-		{x,T,x,x, x,x,x,x, T,x,x,x, x,x,x,T, x,x,x,x, x,x,T,x, x,x,T,T, x,x,x,x, T,x,x,x, x,x,x,T, x,x,x,T, T,x,x,x, x,x,x,x, x},
-		{x,T,T,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,T,x, x},
-		{x,x,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,T,x, x}
+		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x},
+		{x,T,T,T, T,x,x,x, T,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, T,x,x,x, T,T,x,x, x,T,x,x, x,x,x,x, T,x,x,T, T,x,x,x, x,T,x,x, x,x,T,T, T,x,x,x, x,x,T,x, x},
+		{x,T,T,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, T,x,x,x, x,x,x,x, x},
+		{x,T,T,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,x,x,x, x,x,x,x, x},
+		{x,x,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,x,x,x, x,x,x,x, x}
 
 	};
 } // end Parser
@@ -504,55 +586,67 @@ public class Errors {
 			case 8: s = "im expected"; break;
 			case 9: s = "outta expected"; break;
 			case 10: s = "mkay expected"; break;
-			case 11: s = "\"HAI\" expected"; break;
-			case 12: s = "\"TO\" expected"; break;
-			case 13: s = "\"1.2\" expected"; break;
-			case 14: s = "\"KTHXBYE\" expected"; break;
-			case 15: s = "\"I\" expected"; break;
-			case 16: s = "\"HAS\" expected"; break;
-			case 17: s = "\"A\" expected"; break;
-			case 18: s = "\"ITZ\" expected"; break;
-			case 19: s = "\"R\" expected"; break;
-			case 20: s = "\".\" expected"; break;
-			case 21: s = "\"?\" expected"; break;
-			case 22: s = "\"GIMMEH\" expected"; break;
-			case 23: s = "\"LINE\" expected"; break;
-			case 24: s = "\"WORD\" expected"; break;
-			case 25: s = "\"LETTAR\" expected"; break;
-			case 26: s = "\"GTFO\" expected"; break;
-			case 27: s = "\"MOAR\" expected"; break;
-			case 28: s = "\"YR\" expected"; break;
-			case 29: s = "\"UR\" expected"; break;
-			case 30: s = "\"TIL\" expected"; break;
-			case 31: s = "\"WILE\" expected"; break;
-			case 32: s = "\"O\" expected"; break;
-			case 33: s = "\"RLY\" expected"; break;
-			case 34: s = "\"YA\" expected"; break;
-			case 35: s = "\"MEBBE\" expected"; break;
-			case 36: s = "\"NO\" expected"; break;
-			case 37: s = "\"WAI\" expected"; break;
-			case 38: s = "\"OIC\" expected"; break;
-			case 39: s = "\"WTF\" expected"; break;
-			case 40: s = "\"OMG\" expected"; break;
-			case 41: s = "\"OMGWTF\" expected"; break;
-			case 42: s = "\"KTHX\" expected"; break;
+			case 11: s = "r expected"; break;
+			case 12: s = "is expected"; break;
+			case 13: s = "how expected"; break;
+			case 14: s = "\"HAI\" expected"; break;
+			case 15: s = "\"TO\" expected"; break;
+			case 16: s = "\"1.2\" expected"; break;
+			case 17: s = "\"KTHXBYE\" expected"; break;
+			case 18: s = "\"I\" expected"; break;
+			case 19: s = "\"HAS\" expected"; break;
+			case 20: s = "\"A\" expected"; break;
+			case 21: s = "\"ITZ\" expected"; break;
+			case 22: s = "\".\" expected"; break;
+			case 23: s = "\"?\" expected"; break;
+			case 24: s = "\"GIMMEH\" expected"; break;
+			case 25: s = "\"LINE\" expected"; break;
+			case 26: s = "\"WORD\" expected"; break;
+			case 27: s = "\"LETTAR\" expected"; break;
+			case 28: s = "\"GTFO\" expected"; break;
+			case 29: s = "\"MOAR\" expected"; break;
+			case 30: s = "\"YR\" expected"; break;
+			case 31: s = "\"TIL\" expected"; break;
+			case 32: s = "\"WILE\" expected"; break;
+			case 33: s = "\"O\" expected"; break;
+			case 34: s = "\"RLY\" expected"; break;
+			case 35: s = "\"YA\" expected"; break;
+			case 36: s = "\"MEBBE\" expected"; break;
+			case 37: s = "\"NO\" expected"; break;
+			case 38: s = "\"WAI\" expected"; break;
+			case 39: s = "\"OIC\" expected"; break;
+			case 40: s = "\"WTF\" expected"; break;
+			case 41: s = "\"OMG\" expected"; break;
+			case 42: s = "\"OMGWTF\" expected"; break;
 			case 43: s = "\"VISIBLE\" expected"; break;
 			case 44: s = "\"INVISIBLE\" expected"; break;
 			case 45: s = "\"!\" expected"; break;
-			case 46: s = "\"OF\" expected"; break;
-			case 47: s = "\"AN\" expected"; break;
-			case 48: s = "\"NOOB\" expected"; break;
-			case 49: s = "\"WIN\" expected"; break;
-			case 50: s = "\"FAIL\" expected"; break;
-			case 51: s = "??? expected"; break;
-			case 52: s = "invalid Statements"; break;
-			case 53: s = "invalid Statement"; break;
-			case 54: s = "invalid LoopStatement"; break;
-			case 55: s = "invalid LoopStatement"; break;
-			case 56: s = "invalid PrintStatement"; break;
-			case 57: s = "invalid Expression"; break;
-			case 58: s = "invalid Const"; break;
-			case 59: s = "invalid Unary"; break;
+			case 46: s = "\"NOW\" expected"; break;
+			case 47: s = "\"OF\" expected"; break;
+			case 48: s = "\"AN\" expected"; break;
+			case 49: s = "\"MAEK\" expected"; break;
+			case 50: s = "\"TROOF\" expected"; break;
+			case 51: s = "\"NUMBR\" expected"; break;
+			case 52: s = "\"NUMBAR\" expected"; break;
+			case 53: s = "\"YARN\" expected"; break;
+			case 54: s = "\"NOOB\" expected"; break;
+			case 55: s = "\"WIN\" expected"; break;
+			case 56: s = "\"FAIL\" expected"; break;
+			case 57: s = "\"DUZ\" expected"; break;
+			case 58: s = "\"IF\" expected"; break;
+			case 59: s = "\"U\" expected"; break;
+			case 60: s = "\"SAY\" expected"; break;
+			case 61: s = "\"SO\" expected"; break;
+			case 62: s = "\"FOUND\" expected"; break;
+			case 63: s = "??? expected"; break;
+			case 64: s = "invalid Statements"; break;
+			case 65: s = "invalid Statement"; break;
+			case 66: s = "invalid PrintStatement"; break;
+			case 67: s = "invalid Expression"; break;
+			case 68: s = "invalid SwitchLabel"; break;
+			case 69: s = "invalid Const"; break;
+			case 70: s = "invalid Typename"; break;
+			case 71: s = "invalid Unary"; break;
 
 			default: s = "error " + n; break;
 		}

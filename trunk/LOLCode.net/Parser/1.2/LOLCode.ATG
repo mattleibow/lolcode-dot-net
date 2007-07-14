@@ -11,8 +11,8 @@ CHARACTERS
 	cr					= '\u000d'.
 	newLine				= cr + eol.
 	
-	startLetter			= 'A' .. 'Z'.
-	partLetter			= '0' .. '9' + 'A' .. 'Z' + '_'.
+	startLetter			= 'A' .. 'Z' + 'a' .. 'z'.
+	partLetter			= '0' .. '9' + 'A' .. 'Z' + 'a' .. 'z' + '_'.
 	
 	digit				= "0123456789".
 	hexDigit			= digit + "ABCDEFabcdef".	
@@ -46,6 +46,9 @@ TOKENS
 	im					= "IM".
 	outta				= "OUTTA".
 	mkay				= "MKAY".
+	r					= "R".
+	is					= "IS".
+	how					= "HOW".
 	
 PRAGMAS
 	comment				= "BTW" { noteol } CONTEXT (eol).
@@ -64,15 +67,18 @@ LOLCode
 
 Statements<.out Statement stat.>					(. BlockStatement bs = new BlockStatement(GetPragma(t)); stat = bs; .)
 =													(. Statement s; .)
-	{ IF((StartOf(1) || la.kind == _can) && scanner.Peek().kind != _outta) 
-	( CanHasStatement | Statement<out s>			(. bs.statements.Add(s); .)
+	{ IF((StartOf(1) || la.kind == _can || la.kind == _how) && scanner.Peek().kind != _outta) 
+	( CanHasStatement 
+      | FunctionDeclaration
+	  | Statement<out s>							(. bs.statements.Add(s); .)
 	  ) { eos } }
 .
 
 Statement<out Statement stat>						(. stat = null; .)
 =
 	IHasAStatement<out stat>
-	| AssignmentStatement<out stat>
+	| IF(TokenAfterLValue().kind == _r) AssignmentStatement<out stat>
+	| IF(TokenAfterLValue().kind == _is) TypecastStatement<out stat>
 	| GimmehStatement<out stat>
 	| LoopStatement<out stat>
 	| BreakStatement<out stat>
@@ -80,6 +86,8 @@ Statement<out Statement stat>						(. stat = null; .)
 	| OrlyStatement<out stat>
 	| SwitchStatement<out stat>
 	| PrintStatement<out stat>
+	| ExpressionStatement<out stat>
+	| ReturnStatement<out stat>
 .
 
 IHasAStatement<out Statement stat>
@@ -122,25 +130,27 @@ ContinueStatement<out Statement stat>
 
 LoopStatement<out Statement stat>
 =													(. LoopStatement ls = new LoopStatement(GetPragma(la)); stat = ls; .)
-	"IM" "IN" ("YR"|"UR") ident						(. ls.name = t.val; SetEndPragma(stat); BeginScope(); .)
-	[ ident											(. ls.operation = GetFunction(t.val); .)
-	"YR" ident										(. ls.loopvar = CreateLoopVariable(t.val); .)
-	[ "TIL"											(. ls.type = LoopType.Until; .)
+	"IM" "IN" "YR" ident							(. ls.name = t.val; BeginScope(); .)
+	[												(. ls.StartOperation(GetPragma(la)); .)
+	ident											(. ls.SetOperationFunction(GetFunction(t.val)); .)
+	[ "YR" ] ident									(. ls.SetLoopVariable(GetPragma(t), GetVariable(t.val)); SetEndPragma(ls.operation); SetEndPragma(((ls.operation as AssignmentStatement).rval as FunctionExpression).arguments[0]); SetEndPragma((ls.operation as AssignmentStatement).rval); SetEndPragma((ls.operation as AssignmentStatement).lval); .)
+	] [ ( "TIL"										(. ls.type = LoopType.Until; .)
 	| "WILE"										(. ls.type = LoopType.While; .)
-	Expression<out ls.condition> ] ]
+	) Expression<out ls.condition> ]				(. SetEndPragma(stat); .)
 	eos { eos }
 	Statements<out ls.statements>
-	"IM" "OUTTA" ("YR"|"UR") ident					(. RemoveLoopVariable(ls.loopvar); if(t.val != ls.name) Error("Loop terminator label does not match loop label"); EndScope(); .)
+	"IM" "OUTTA" "YR" ident							(. /*RemoveLoopVariable(ls.GetLoopVariable() as LocalRef);*/ if(t.val != ls.name) Error("Loop terminator label does not match loop label"); EndScope(); .)
 .
 
 OrlyStatement<out Statement stat>
 =													(. ConditionalStatement cs = new ConditionalStatement(GetPragma(la)); stat = cs; ConditionalStatement cur = cs; Statement st; Expression e; cs.condition = new VariableLValue(GetPragma(la), GetVariable("IT")); .)
-	"O" "RLY" "?" { eos }
+	"O" "RLY" "?"									(. SetEndPragma(cs); .)
+		{ eos }
 		[ "YA" "RLY" { eos } ]						(. BeginScope(); .)
 		Statements<out cs.trueStatements>			(. EndScope(); .)
 		{ "MEBBE"									(. cur.falseStatements = new ConditionalStatement(GetPragma(la)); .)
-		Expression<out e> { eos } 					(. (cur.falseStatements as ConditionalStatement).condition = e; cur = (ConditionalStatement)cur.falseStatements; BeginScope(); .)
-		Statements<out cur.trueStatements>			(. EndScope(); .)
+		Expression<out e>  							(. (cur.falseStatements as ConditionalStatement).condition = e; SetEndPragma(cur.falseStatements); cur = (ConditionalStatement)cur.falseStatements; BeginScope(); .)
+		{ eos } Statements<out cur.trueStatements>	(. EndScope(); .)
 		}
 		[ "NO" "WAI" { eos }						(. BeginScope(); .)
 		  Statements<out cur.falseStatements>		(. EndScope(); .)
@@ -150,16 +160,23 @@ OrlyStatement<out Statement stat>
 
 SwitchStatement<out Statement stat>
 =													(. SwitchStatement ss = new SwitchStatement(GetPragma(la)); ss.control = new VariableLValue(GetPragma(la), GetVariable("IT")); stat = ss; Object label; Statement block; .)
-	"WTF" "?" { eos }
+	"WTF" "?"										(. SetEndPragma(ss); .)
+	{ eos }
 	{ 
-		"OMG" Const<out label> { eos }
+		"OMG" SwitchLabel<out label> { eos }
 		Statements<out block>						(. AddCase(ss, label, block); .)
 	}
 	[
 		"OMGWTF" { eos }
 		Statements<out ss.defaultCase>
 	]
-	"KTHX"
+	"OIC"
+.
+
+SwitchLabel<out object obj>							(. obj = null; .)
+=
+	Const<out obj>
+	| stringCon										(. List<VariableRef> refs = new List<VariableRef>(); obj = notdot.LOLCode.StringExpression.UnescapeString(t.val, GetScope(), errors, GetPragma(t), refs); if(refs.Count > 0) Error("String constants in OMG labels cannot contain variable substitutions."); .)
 .
 
 PrintStatement<out Statement stat>					(. PrintStatement ps = new PrintStatement(GetPragma(la)); ps.message = new FunctionExpression(GetPragma(la), GetFunction("SMOOSH")); stat = ps; Expression e;.)
@@ -170,9 +187,21 @@ PrintStatement<out Statement stat>					(. PrintStatement ps = new PrintStatement
 	] eos											(. SetEndPragma(stat); .)
 .
 
+TypecastStatement<out Statement stat>
+=													(. AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); stat = ass; Type t; .)
+	LValue<out ass.lval> 
+	"IS" "NOW" "A" Typename<out t>					(. SetEndPragma(ass); ass.rval = new TypecastExpression(ass.location, t, ass.lval); .)
+.
+
+ExpressionStatement<out Statement stat>
+=													(. AssignmentStatement ass = new AssignmentStatement(GetPragma(la)); ass.lval = new VariableLValue(GetPragma(la), GetVariable("IT")); stat = ass; Expression exp;.)
+	Expression<out exp>								(. ass.rval = exp; SetEndPragma(ass); .)
+.
+
 Expression<out Expression exp>						(. exp = null; .)
 =
 	IF(IsFunction(la.val)) FunctionExpression<out exp>
+	| TypecastExpression<out exp>
 	| Unary<out exp>
 .
 
@@ -180,11 +209,25 @@ FunctionExpression<out Expression exp>				(. FunctionExpression fe = new Functio
 =
 	ident											(. fe.func = GetFunction(t.val); int argsLeft = fe.func.Arity; .)
 	[ "OF" ]
-	[ IF(argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay))
+	[ IF((argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) && la.kind != _eos)
 	  Expression<out e2>							(. fe.arguments.Add(e2); argsLeft--; .)
-	  { IF(argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) 
+	  { IF((argsLeft > 0 || (fe.func.IsVariadic && la.kind != _mkay)) && la.kind != _eos) 
 	    [ "AN" ] Expression<out e2>					(. fe.arguments.Add(e2); argsLeft--; .)
-	} ] [ IF(fe.func.IsVariadic) mkay ]
+	} ] [ IF(fe.func.IsVariadic && la.kind != _eos) mkay ]
+.
+
+TypecastExpression<out Expression exp>
+=													(. TypecastExpression te = new TypecastExpression(GetPragma(la)); exp = te; .)
+	"MAEK" Expression<out te.exp> [ "A" ]
+	Typename<out te.destType>						(. SetEndPragma(te); .)
+.
+
+Typename<out Type t>								(. t = typeof(void); .)
+=
+	"TROOF"											(. t = typeof(bool); .)
+	| "NUMBR"										(. t = typeof(int); .)
+	| "NUMBAR"										(. t = typeof(float); .)
+	| "YARN"										(. t = typeof(string); .)
 .
 
 Unary<out Expression exp>							(. exp = null; Object val; LValue lv; .)
@@ -221,5 +264,20 @@ LValue<out LValue lv>								(. lv = null; .)
 	| Const<out arg>								(. alv.index = new PrimitiveExpression(GetPragma(t), arg); SetEndPragma(alv.index); .)
 	) "IN" "MAH" LValue<out alv.lval>				(. SetEndPragma(alv); .)
 .*/
+
+FunctionDeclaration
+=													(. if(currentMethod != null) Error("Cannot define a function inside another function."); .)
+	"HOW" "DUZ" "I" ident							(. currentMethod = new LOLMethod(GetFunction(t.val), program); short arg = 0; .)
+	[ "YR" ident									(. currentMethod.SetArgumentName(arg++, t.val); .)
+	{ "AN" "YR" ident								(. currentMethod.SetArgumentName(arg++, t.val); .)
+	} ] { eos }
+	Statements<out currentMethod.statements>
+	"IF" "U" "SAY" "SO"								(. program.methods.Add(currentMethod.info.Name, currentMethod); currentMethod = null; .)	
+.
+
+ReturnStatement<out Statement stat>					(. ReturnStatement rs = new ReturnStatement(GetPragma(la)); stat = rs; .)
+=
+	"FOUND" "YR" Expression<out rs.expression>
+.
 
 END LOLCode.

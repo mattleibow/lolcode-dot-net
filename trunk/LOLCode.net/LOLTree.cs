@@ -99,6 +99,10 @@ namespace notdot.LOLCode
                 {
                     gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToString", BindingFlags.Public | BindingFlags.Static), null);
                 }
+                else if (to == typeof(bool))
+                {
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToBool", BindingFlags.Public | BindingFlags.Static), null);
+                }
                 else
                 {
                     throw new InvalidOperationException(string.Format("Unknown cast: From {0} to {1}", from.Name, to.Name));
@@ -167,7 +171,7 @@ namespace notdot.LOLCode
                     gen.Emit(OpCodes.Ldloc, (var as LocalRef).Local);
                 }
             }
-            else
+            else if(var is GlobalRef) 
             {
                 if (t == typeof(Dictionary<object,object>))
                 {
@@ -181,6 +185,22 @@ namespace notdot.LOLCode
                     gen.Emit(OpCodes.Ldfld, (var as GlobalRef).Field);
                 }
             }
+            else if (var is ArgumentRef)
+            {
+                if (t == typeof(Dictionary<object, object>))
+                {
+                    gen.Emit(OpCodes.Ldarga, (var as ArgumentRef).Number);
+                    gen.EmitCall(OpCodes.Call, typeof(stdlol.Utils).GetMethod("ToDict"), null);
+                }
+                else
+                {
+                    gen.Emit(OpCodes.Ldarg, (var as ArgumentRef).Number);
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException("Unknown variable type");
+            }
 
             Expression.EmitCast(gen, var.Type, t);
         }
@@ -192,16 +212,25 @@ namespace notdot.LOLCode
 
         public override void  EndSet(LOLMethod lm, Type t, ILGenerator gen)
         {
-            LOLProgram.WrapObject(t, gen);
+            //LOLProgram.WrapObject(t, gen);
+            Expression.EmitCast(gen, t, var.Type);
 
             //Store it
             if (var is LocalRef)
             {
                 gen.Emit(OpCodes.Stloc, (var as LocalRef).Local);
             }
-            else
+            else if(var is GlobalRef)
             {
                 gen.Emit(OpCodes.Stfld, (var as GlobalRef).Field);
+            }
+            else if (var is ArgumentRef)
+            {
+                gen.Emit(OpCodes.Starg, (var as ArgumentRef).Number);
+            }
+            else
+            {
+                throw new InvalidOperationException("Unknown variable type");
             }
         }
 
@@ -332,6 +361,7 @@ namespace notdot.LOLCode
 
     internal enum LoopType
     {
+        Infinite,
         While,
         Until
     }
@@ -340,9 +370,8 @@ namespace notdot.LOLCode
     {
         public string name = null;
         public Statement statements;
-        public FunctionRef operation;
-        public LocalRef loopvar;
-        public LoopType type;
+        public Statement operation;
+        public LoopType type = LoopType.Infinite;
         public Expression condition;
 
         private Label m_breakLabel;
@@ -365,13 +394,39 @@ namespace notdot.LOLCode
 
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
-            //TODO: Add new loop behaviour
+            //Create the loop variable if it's defined
+            /*if (operation != null)
+                lm.DefineLocal(gen, ((operation as AssignmentStatement).lval as VariableLValue).var as LocalRef);*/
+
             lm.breakables.Add(this);
             gen.MarkLabel(m_continueLabel);
 
+            //Evaluate the condition (if one exists)
+            if (condition != null)
+            {
+                condition.Emit(lm, typeof(bool), gen);
+                if (type == LoopType.While)
+                {
+                    gen.Emit(OpCodes.Brfalse, m_breakLabel);
+                }
+                else if (type == LoopType.Until)
+                {
+                    gen.Emit(OpCodes.Brtrue, m_breakLabel);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Unknown loop type");
+                }
+            }
+
             //lm.BeginScope(gen);
+            //Emit the loop body
             statements.Emit(lm, gen);
             //lm.EndScope(gen);
+
+            //Emit the loop op (if one exists)
+            if (operation != null)
+                operation.Emit(lm, gen);
 
             gen.Emit(OpCodes.Br, m_continueLabel);
 
@@ -382,12 +437,40 @@ namespace notdot.LOLCode
 
         public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
+            if (operation != null)
+            {
+                FunctionRef fr = ((operation as AssignmentStatement).rval as FunctionExpression).func;
+                if (fr.Arity > 1 || (fr.IsVariadic && fr.Arity != 0))
+                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "Function used in loop must take 1 argument"));
+            }
+
             m_breakLabel = gen.DefineLabel();
             m_continueLabel = gen.DefineLabel();
 
             lm.breakables.Add(this);
             statements.Process(lm, errors, gen);
             lm.breakables.RemoveAt(lm.breakables.Count - 1);
+        }
+
+        public void StartOperation(CodePragma loc)
+        {
+            operation = new AssignmentStatement(loc);
+        }
+
+        public void SetOperationFunction(FunctionRef fr)
+        {
+            (operation as AssignmentStatement).rval = new FunctionExpression(operation.location, fr);
+        }
+
+        public void SetLoopVariable(CodePragma loc, VariableRef vr)
+        {
+            (operation as AssignmentStatement).lval = new VariableLValue(loc, vr);
+            ((operation as AssignmentStatement).rval as FunctionExpression).arguments.Add(new VariableLValue(loc, vr));
+        }
+
+        public VariableRef GetLoopVariable()
+        {
+            return ((operation as AssignmentStatement).lval as VariableLValue).var;
         }
 
         public LoopStatement(CodePragma loc) : base(loc) { }
@@ -460,6 +543,8 @@ namespace notdot.LOLCode
 
         public override void Emit(LOLMethod lm, ILGenerator gen)
         {
+            location.MarkSequencePoint(gen);
+
             condition.Emit(lm, typeof(bool), gen);
 
             if (invert)
@@ -900,7 +985,17 @@ namespace notdot.LOLCode
         {
             location.MarkSequencePoint(gen);
 
-            gen.Emit(OpCodes.Br, lm.breakables[breakIdx].BreakLabel.Value);
+            if (breakIdx < 0)
+            {
+                if (lm.info.ReturnType != typeof(void))
+                    //TODO: When we optimise functions to possibly return other values, worry about this
+                    gen.Emit(OpCodes.Ldnull);
+                gen.Emit(OpCodes.Ret);
+            }
+            else
+            {
+                gen.Emit(OpCodes.Br, lm.breakables[breakIdx].BreakLabel.Value);
+            }
         }
 
         public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
@@ -921,7 +1016,8 @@ namespace notdot.LOLCode
             {
                 if (label == null)
                 {
-                    errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "ENUF encountered, but nothing to break out of!"));
+                    //Return from function
+                    //errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, "ENUF encountered, but nothing to break out of!"));
                 }
                 else
                 {
@@ -1019,8 +1115,14 @@ namespace notdot.LOLCode
 
         public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
         {
-            if (arguments.Count != func.Arity || (func.IsVariadic && arguments.Count < func.Arity))
-                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Attempted to call a function that takes {0} args with {1} args.", func.Arity, arguments.Count)));
+            if (arguments.Count != func.Arity && !func.IsVariadic)
+            {
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Function \"{0}\" requires {1} arguments, passed {2}.", func.Name, func.Arity, arguments.Count)));
+            }
+            else if (arguments.Count < func.Arity && func.IsVariadic)
+            {
+                errors.Add(new CompilerError(location.filename, location.startLine, location.startColumn, null, string.Format("Function \"{0}\" requires at least {1} arguments, passed {2}.", func.Name, func.Arity, arguments.Count)));
+            }
 
             foreach (Expression arg in arguments)
                 arg.Process(lm, errors, gen);
@@ -1072,7 +1174,7 @@ namespace notdot.LOLCode
             return;
         }
 
-        private string UnescapeString(string str, Scope s, Errors e, List<VariableRef> refs)
+        public static string UnescapeString(string str, Scope s, Errors e, CodePragma location, List<VariableRef> refs)
         {
             int lastIdx = 1;
             int idx;
@@ -1159,11 +1261,60 @@ namespace notdot.LOLCode
         public StringExpression(CodePragma loc, string str, Scope s, Errors e) : base(loc)
         {
             List<VariableRef> refs = new List<VariableRef>();
-            this.str = UnescapeString(str, s, e, refs);
+            this.str = UnescapeString(str, s, e, location, refs);
 
             vars = new LValue[refs.Count];
             for (int i = 0; i < vars.Length; i++)
                 vars[i] = new VariableLValue(location, refs[i]);
         }
+    }
+
+    internal class TypecastExpression : Expression
+    {
+        public Type destType;
+        public Expression exp;
+
+        public override Type EvaluationType
+        {
+            get { return destType; }
+        }
+
+        public override void Emit(LOLMethod lm, Type t, ILGenerator gen)
+        {
+            exp.Emit(lm, destType, gen);
+            if (destType != t)
+                Expression.EmitCast(gen, destType, t);
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            exp.Process(lm, errors, gen);
+        }
+
+        public TypecastExpression(CodePragma loc) : base(loc) { }
+
+        public TypecastExpression(CodePragma loc, Type t, Expression exp) : base(loc)
+        {
+            this.destType = t;
+            this.exp = exp;
+        }
+    }
+
+    internal class ReturnStatement : Statement
+    {
+        public Expression expression;
+
+        public override void Emit(LOLMethod lm, ILGenerator gen)
+        {
+            expression.Emit(lm, lm.info.ReturnType, gen);
+            gen.Emit(OpCodes.Ret);
+        }
+
+        public override void Process(LOLMethod lm, CompilerErrorCollection errors, ILGenerator gen)
+        {
+            expression.Process(lm, errors, gen);
+        }
+
+        public ReturnStatement(CodePragma loc) : base(loc) { }
     }
 }

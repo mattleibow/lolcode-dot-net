@@ -1,4 +1,4 @@
-LOLCode.net, Revision 18
+LOLCode.net, Revision 34
 ------------------------
 LoLCode.net is a .net framework compiler for the language LOLCode (http://www.lolcode.com).
 This distribution includes the compiler (lolc.exe), compiler library (lolcode.net.dll),
