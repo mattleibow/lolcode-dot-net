@@ -106,6 +106,18 @@ namespace notdot.LOLCode
         }
     }
 
+    internal class ArgumentRef : VariableRef
+    {
+        public short Number;
+
+        public ArgumentRef(string name, short num)
+        {
+            this.Name = name;
+            this.Number = num;
+            this.Type = typeof(object);
+        }
+    }
+
     internal class Scope : IEnumerable<SymbolRef>
     {
         private Scope parentScope = null;

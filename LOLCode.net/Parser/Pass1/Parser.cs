@@ -15,10 +15,10 @@ internal partial class Parser {
 	const int _realCon = 3;
 	const int _stringCon = 4;
 	const int _eos = 5;
-	const int maxT = 74;
-	const int _comment = 75;
-	const int _blockcomment = 76;
-	const int _continuation = 77;
+	const int maxT = 78;
+	const int _comment = 79;
+	const int _blockcomment = 80;
+	const int _continuation = 81;
 
 	const bool T = true;
 	const bool x = false;
@@ -53,11 +53,11 @@ internal partial class Parser {
 			t = la;
 			la = scanner.Scan();
 			if (la.kind <= maxT) { ++errDist; break; }
-				if (la.kind == 75) {
+				if (la.kind == 79) {
 				}
-				if (la.kind == 76) {
+				if (la.kind == 80) {
 				}
-				if (la.kind == 77) {
+				if (la.kind == 81) {
 				}
 
 			la = t;
@@ -110,7 +110,7 @@ internal partial class Parser {
 			} else if (la.kind == 11) {
 				Get();
 				version = LOLCodeVersion.v1_2; 
-			} else SynErr(75);
+			} else SynErr(79);
 		}
 		while (la.kind == 5) {
 			Get();
@@ -160,7 +160,15 @@ internal partial class Parser {
 			Get();
 		}
 		while (StartOf(2)) {
-			OtherStatement();
+			if (la.kind == 15) {
+				VarDecl();
+			} else {
+				OtherStatement();
+			}
+			Expect(5);
+			while (la.kind == 5) {
+				Get();
+			}
 		}
 		Expect(18);
 		Expect(19);
@@ -191,8 +199,8 @@ internal partial class Parser {
 			Get();
 		} else if (StartOf(3)) {
 			Keyword();
-		} else SynErr(76);
-		while (StartOf(2)) {
+		} else SynErr(80);
+		while (StartOf(4)) {
 			if (la.kind == 1) {
 				Get();
 			} else if (la.kind == 2) {
@@ -425,7 +433,23 @@ internal partial class Parser {
 			Get();
 			break;
 		}
-		default: SynErr(77); break;
+		case 74: {
+			Get();
+			break;
+		}
+		case 75: {
+			Get();
+			break;
+		}
+		case 76: {
+			Get();
+			break;
+		}
+		case 77: {
+			Get();
+			break;
+		}
+		default: SynErr(81); break;
 		}
 	}
 
@@ -441,10 +465,11 @@ internal partial class Parser {
 	}
 	
 	bool[,] set = {
-		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
-		{x,T,T,T, T,x,x,x, x,x,x,x, x,T,x,T, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x},
-		{x,T,T,T, T,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x}
+		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x},
+		{x,T,T,T, T,x,x,x, x,x,x,x, x,T,x,T, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x},
+		{x,T,T,T, T,x,x,x, x,x,x,x, x,x,x,T, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x},
+		{x,T,T,T, T,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x}
 
 	};
 } // end Parser
@@ -536,10 +561,14 @@ public class Errors {
 			case 71: s = "\"NOOB\" expected"; break;
 			case 72: s = "\"MAH\" expected"; break;
 			case 73: s = "\"OF\" expected"; break;
-			case 74: s = "??? expected"; break;
-			case 75: s = "invalid LOLCode"; break;
-			case 76: s = "invalid OtherStatement"; break;
-			case 77: s = "invalid Keyword"; break;
+			case 74: s = "\"MAEK\" expected"; break;
+			case 75: s = "\"IS\" expected"; break;
+			case 76: s = "\"NOW\" expected"; break;
+			case 77: s = "\"FOUND\" expected"; break;
+			case 78: s = "??? expected"; break;
+			case 79: s = "invalid LOLCode"; break;
+			case 80: s = "invalid OtherStatement"; break;
+			case 81: s = "invalid Keyword"; break;
 
 			default: s = "error " + n; break;
 		}
